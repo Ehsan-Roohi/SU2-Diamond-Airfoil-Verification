@@ -1,0 +1,5 @@
+vertex,x_over_c,y_over_c
+leading_edge,0.0000000000,0.0000000000
+lower_mid_chord,0.5000000000,-0.0702704174
+trailing_edge,1.0000000000,0.0000000000
+upper_mid_chord,0.5000000000,0.0702704174

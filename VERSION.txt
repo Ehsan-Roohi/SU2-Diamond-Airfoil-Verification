@@ -1,0 +1,6 @@
+Repository: SU2-Diamond-Airfoil-Verification
+Repository release: 1.0.0-public-book-companion
+Release date: 2026-08-02
+Reference solver: SU2 v8.5.0 (Harrier)
+Public URL: https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification
+Scientific status: one qualified teaching reference and eight unverified teaching configurations

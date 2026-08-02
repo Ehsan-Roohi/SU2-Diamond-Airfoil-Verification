@@ -1,0 +1,73 @@
+{
+  "package": "SU2 Diamond-Airfoil Verification",
+  "package_revision": "1.0.0-public-book-companion",
+  "revision_date": "2026-08-02",
+  "reference_solver": "SU2 v8.5.0 (Harrier)",
+  "content": {
+    "meshes": 4,
+    "physical_cases": 9,
+    "physical_case_configs": 18,
+    "smoke_tests": 1,
+    "student_scripts": 4,
+    "wrapper_and_package_tests": 19
+  },
+  "execution_policy": {
+    "default_parallel_mode": "OpenMP",
+    "default_threads": 4,
+    "stale_output_policy": "fail unless --archive-old is explicitly requested to preserve prior outputs",
+    "ascii_restart_extension": ".csv",
+    "automated_exit_failure_code": 2,
+    "smoke_policy": "installation/output only; nonphysical warnings recorded, not accepted as physics",
+    "production_policy": "fail closed"
+  },
+  "numerical_policy": {
+    "euler_convective_flux": "HLLC",
+    "euler_startup_cfl": 0.1,
+    "euler_second_order_cfl": 0.2,
+    "euler_startup_iterations": 600,
+    "euler_second_order_iterations": 2000,
+    "euler_mesh": "diamond_euler_sharp_medium_720x181.su2",
+    "euler_alpha0_status": "QUALIFIED_TEACHING_REFERENCE_NOT_GRID_BENCHMARK",
+    "euler_alpha4_alpha8_status": "TEACHING_CONFIG_NOT_YET_REFERENCE_VERIFIED",
+    "qualified_residual_policy": "final value and negative stage drop remain explicit warnings; force/physicality/field checks enforce",
+    "mean_flow_second_stage": "second-order MUSCL",
+    "sst_transport": "first order (MUSCL_TURB=NO)",
+    "sst_freestream_turbulence_intensity": 0.05,
+    "sst_freestream_turbulent_to_laminar_viscosity_ratio": 10.0,
+    "default_final_force_window": 200,
+    "residual_history": "initial, final, and signed drop in orders always recorded; optional minimum enforced",
+    "minimum_required_force_samples": 200,
+    "default_force_peak_to_peak_limit_percent": 1.0,
+    "euler_alpha0_cl_stability": "absolute peak-to-peak limit 1e-7 from controlled sharp-wall run",
+    "unverified_alpha_zero_cl_stability": "absolute peak-to-peak limit required; no value invented",
+    "default_max_nonphysical_points": 0,
+    "nonphysical_warning_spellings": ["nonphysical", "non-physical", "non physical"],
+    "optional_reference_checks": [
+      "CL range",
+      "CD range",
+      "normalized mirrored-density RMS symmetry",
+      "shock-angle absolute error",
+      "maximum y+"
+    ]
+  },
+  "postprocessing": {
+    "shock_angle": "native-point least-squares density gradient and auditable ridge CSV",
+    "display_filter_used_for_measurement": false,
+    "third_party_python_dependencies": "none"
+  },
+  "optional_mesh_regeneration": {
+    "script": "scripts/generate_sharp_euler_ogrid.py",
+    "dependencies": ["numpy", "scipy"],
+    "required_for_normal_use": false
+  },
+  "reference_result_status": "one qualified teaching reference; eight unverified teaching configurations",
+  "geometry_provenance": {
+    "euler": "piecewise-linear sharp four-corner wall matching shock-expansion geometry; one grid only",
+    "laminar_sst": "rounded all-corner wall near r/c=0.001"
+  },
+  "public_repository": "https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification",
+  "integrity": {
+    "folder_contents": "SHA256SUMS.txt",
+    "zip_archive": "separate .sha256 sidecar"
+  }
+}

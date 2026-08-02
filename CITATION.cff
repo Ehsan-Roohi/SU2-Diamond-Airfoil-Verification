@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use these teaching cases, please cite this repository and the accompanying book appendix."
+title: "SU2 Diamond-Airfoil Verification: Teaching Cases for Gas Dynamics"
+type: software
+authors:
+  - family-names: Roohi
+    given-names: Ehsan
+repository-code: "https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification"
+version: "1.0.0"
+date-released: 2026-08-02
+license: MIT
+keywords:
+  - SU2
+  - compressible flow
+  - diamond airfoil
+  - shock-expansion theory
+  - CFD verification
+  - gas dynamics

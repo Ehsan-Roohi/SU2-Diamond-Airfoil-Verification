@@ -1,0 +1,26 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# SU2-generated case outputs
+cases/**/history_*.csv
+cases/**/restart_*.csv
+cases/**/flow_*.vtu
+cases/**/surface_flow_*.csv
+cases/**/case_metrics.json
+cases/**/shock_ridge_*.csv
+cases/**/logs/
+cases/**/previous_outputs/
+
+# Smoke-test outputs
+smoke_test/history_*.csv
+smoke_test/restart_*.csv
+smoke_test/flow_*.vtu
+smoke_test/surface_flow_*.csv
+smoke_test/logs/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
