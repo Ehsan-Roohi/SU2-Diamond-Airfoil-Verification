@@ -67,7 +67,7 @@
   },
   "public_repository": "https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification",
   "integrity": {
-    "folder_contents": "SHA256SUMS.txt",
-    "zip_archive": "separate .sha256 sidecar"
+    "repository_files": "SHA256SUMS.txt",
+    "immutable_identity": "record the Git commit SHA used for each calculation"
   }
 }

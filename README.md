@@ -25,10 +25,11 @@ before accepting a result.
 An independent v8.5.0 verification check found that earlier Roe-flux
 `euler_alpha0` settings
 did **not** satisfy their residual, nonphysical-state, or force-window criteria.
-Controlled tuning showed that HLLC at CFL 0.1 for startup and 0.2 for the MUSCL
+Controlled tuning showed that the Harten–Lax–van Leer–Contact (HLLC) flux at
+CFL 0.1 for startup and 0.2 for the MUSCL
 stage reduces that failure. A new sharp four-corner Euler mesh removes the
 rounded-trailing-edge near-vacuum mechanism and produced zero physicality
-warnings with stable symmetric loads. Revision 3 therefore uses that sharp mesh
+warnings with stable symmetric loads. The distributed cases therefore use that sharp mesh
 and the conservative HLLC settings for all Euler folders. Only alpha zero has
 been checked quantitatively. Its force, symmetry, shock-angle, and physicality
 checks are enforced; the plateaued density residual remains an explicit
