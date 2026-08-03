@@ -1,0 +1,137 @@
+name: Alpha-8 viscous vector fields
+
+on:
+  push:
+    paths:
+      - ".github/workflows/alpha8_vector_fields.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  solve:
+    name: ${{ matrix.case }} on 4 OpenMP threads
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [laminar_alpha8, sst_alpha8]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download official SU2 v8.5.0 OpenMP binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SU2_DIR="${RUNNER_TEMP}/su2-v8.5.0"
+          mkdir -p "${SU2_DIR}"
+
+          mapfile -t ASSETS < <(
+            gh release view v8.5.0 --repo su2code/SU2 --json assets --jq '.assets[].name'
+          )
+          printf 'Available v8.5.0 assets:\n%s\n' "${ASSETS[*]}"
+
+          ASSET=""
+          for candidate in "${ASSETS[@]}"; do
+            lower="${candidate,,}"
+            if [[ "${lower}" == *linux* && "${lower}" == *omp* && ( "${lower}" == *.tar.gz || "${lower}" == *.zip ) ]]; then
+              ASSET="${candidate}"
+              break
+            fi
+          done
+          if [[ -z "${ASSET}" ]]; then
+            echo "No Linux OpenMP SU2 v8.5.0 release asset was found." >&2
+            exit 1
+          fi
+
+          gh release download v8.5.0 --repo su2code/SU2 --pattern "${ASSET}" --dir "${SU2_DIR}"
+          case "${ASSET}" in
+            *.tar.gz) tar -xzf "${SU2_DIR}/${ASSET}" -C "${SU2_DIR}" ;;
+            *.zip) unzip -q "${SU2_DIR}/${ASSET}" -d "${SU2_DIR}" ;;
+          esac
+
+          SU2_EXE="$(find "${SU2_DIR}" -type f -name SU2_CFD -perm -111 | head -n 1)"
+          if [[ -z "${SU2_EXE}" ]]; then
+            echo "SU2_CFD was not found after extraction." >&2
+            find "${SU2_DIR}" -maxdepth 4 -type f | sort
+            exit 1
+          fi
+          echo "$(dirname "${SU2_EXE}")" >> "${GITHUB_PATH}"
+          echo "SU2 executable: ${SU2_EXE}"
+
+      - name: Verify solver executable
+        run: |
+          set -euo pipefail
+          command -v SU2_CFD
+          SU2_CFD --help >/dev/null
+
+      - name: Run two-stage alpha-8 case
+        id: solve_case
+        continue-on-error: true
+        env:
+          CASE_NAME: ${{ matrix.case }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          CASE_DIR="cases/${CASE_NAME}"
+          python scripts/run_case.py "${CASE_DIR}" --threads 4 --archive-old 2>&1 |
+            tee "${CASE_DIR}/github_actions_driver.log"
+          rc=${PIPESTATUS[0]}
+          printf '%s\n' "${rc}" > "${CASE_DIR}/github_actions_exit_code.txt"
+          exit "${rc}"
+
+      - name: Inventory generated vector-field files
+        if: always()
+        env:
+          CASE_NAME: ${{ matrix.case }}
+        shell: bash
+        run: |
+          set -u
+          CASE_DIR="cases/${CASE_NAME}"
+          find "${CASE_DIR}" -maxdepth 3 -type f -printf '%P\t%s bytes\n' |
+            sort | tee "${CASE_DIR}/github_actions_inventory.txt"
+          test -s "${CASE_DIR}/flow_second_order.vtu" || {
+            echo "flow_second_order.vtu is missing or empty" >&2
+            exit 1
+          }
+
+      - name: Upload native fields, histories, and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha8-${{ matrix.case }}-native-fields
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
+          path: |
+            cases/${{ matrix.case }}/flow_*.vtu
+            cases/${{ matrix.case }}/surface_flow_*.vtu
+            cases/${{ matrix.case }}/surface_flow_*.csv
+            cases/${{ matrix.case }}/restart_*.csv
+            cases/${{ matrix.case }}/history_*.csv
+            cases/${{ matrix.case }}/case_metrics.json
+            cases/${{ matrix.case }}/shock_ridge_*.csv
+            cases/${{ matrix.case }}/logs/**
+            cases/${{ matrix.case }}/github_actions_*.txt
+            cases/${{ matrix.case }}/github_actions_*.log
+
+      - name: Enforce numerical acceptance
+        if: always()
+        env:
+          SOLVE_OUTCOME: ${{ steps.solve_case.outcome }}
+        run: |
+          if [[ "${SOLVE_OUTCOME}" != "success" ]]; then
+            echo "The solver completed or stopped without satisfying the fail-closed acceptance policy." >&2
+            exit 2
+          fi
