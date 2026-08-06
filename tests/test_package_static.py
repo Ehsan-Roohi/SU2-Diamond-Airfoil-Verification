@@ -26,9 +26,9 @@ class PackageStaticTests(unittest.TestCase):
     def configs(self) -> list[Path]:
         return sorted(CASES.glob("*/*.cfg"))
 
-    def test_nine_cases_and_eighteen_configs_are_present(self):
-        self.assertEqual(len([path for path in CASES.iterdir() if path.is_dir()]), 9)
-        self.assertEqual(len(self.configs()), 18)
+    def test_twelve_cases_and_twenty_four_configs_are_present(self):
+        self.assertEqual(len([path for path in CASES.iterdir() if path.is_dir()]), 12)
+        self.assertEqual(len(self.configs()), 24)
 
     def test_history_and_ascii_output_names_are_current(self):
         for path in self.configs():
@@ -72,9 +72,18 @@ class PackageStaticTests(unittest.TestCase):
         self.assertEqual(alpha0["residual_policy"], "warning")
         self.assertEqual(alpha0["max_nonphysical_points"], "0")
         self.assertEqual(alpha0["mesh"], "diamond_euler_sharp_medium_720x181.su2")
+        archived_report_cases = {
+            "euler_alpha0", "euler_alpha1", "euler_alpha2",
+            "euler_alpha3", "euler_alpha4",
+        }
         for row in rows:
             self.assertNotEqual(row["reference_status"], "VERIFIED")
-            if row["case"] != "euler_alpha0":
+            if row["case"] in archived_report_cases:
+                for key in ("cl_min", "cl_max", "cd_min", "cd_max"):
+                    self.assertNotEqual(
+                        row[key], "", f"missing archived range in {row['case']}:{key}"
+                    )
+            else:
                 for key in ("cl_min", "cl_max", "cd_min", "cd_max"):
                     self.assertEqual(row[key], "", f"unarchived range in {row['case']}:{key}")
 

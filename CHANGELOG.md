@@ -1,5 +1,19 @@
 # Change log
 
+## 1.1.0-su2-only-report-reproduction — 2026-08-06
+
+- Added audited Euler cases at 1°, 2°, and 3° so the report load sweep uses
+  native SU2 output from 0° through 4°.
+- Replaced the former custom-code report evidence with SU2 field panels,
+  numerical Schlieren, native-grid wave measurements, and archived force
+  windows.
+- Added the report-asset generator, SU2-only field surrogate, common-scale
+  comparison templates, reference figures, and exact reproduction targets.
+- Added downloadable student-package and revised-Word assets to the tagged
+  GitHub release.
+- Retained the residual plateau as an explicit `QUALIFIED_PASS` warning; no
+  grid-independence or hard-convergence claim is made.
+
 ## 1.0.0-public-book-companion — 2026-08-02
 
 - Published the teaching package as a structured public GitHub repository.
