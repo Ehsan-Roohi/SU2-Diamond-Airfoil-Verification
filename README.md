@@ -1,10 +1,10 @@
 # SU2 Diamond-Airfoil Verification
 
 This public repository accompanies Appendix 6A of the gas-dynamics book. It
-contains four structured O-grids and nine two-stage teaching cases for
-**SU2 v8.5.0 (Harrier)**. The matrix covers a Mach-3 diamond airfoil at angles
-of attack of 0°, 4°, and 8° using Euler, laminar Navier–Stokes, and SST
-k–omega Reynolds-averaged Navier–Stokes (RANS) models.
+contains four structured O-grids and twelve two-stage teaching cases for
+**SU2 v8.5.0 (Harrier)**. The report-reproduction Euler sweep covers 0°, 1°,
+2°, 3°, and 4°; the original Euler/laminar/SST teaching matrix retains 0°, 4°,
+and 8°.
 
 The repository teaches a reproducible sequence: define the geometry and
 boundary conditions; initialize a robust first-order solution; restart with
@@ -14,8 +14,9 @@ histories, physicality warnings, symmetry, shock angle, and wall resolution
 before accepting a result.
 
 > **Scientific status.** The files are executable teaching configurations. The
-> sharp-wall `euler_alpha0` case is a qualified teaching reference, not a
-> grid-converged benchmark; the other eight cases remain unverified. The numerical
+> sharp-wall Euler cases from 0° through 4° are qualified report-reproduction
+> references, not grid-converged benchmarks; the other seven cases remain
+> unverified. The numerical
 > checks in `run_case.py` prevent a normal SU2 exit from being mistaken for a
 > converged run. However, `EXPECTED_RESULTS.csv` intentionally leaves CL/CD,
 > shock-angle, symmetry, y+, runtime, RAM, and disk ranges as `TBD` where a clean
@@ -30,21 +31,25 @@ CFL 0.1 for startup and 0.2 for the MUSCL
 stage reduces that failure. A new sharp four-corner Euler mesh removes the
 rounded-trailing-edge near-vacuum mechanism and produced zero physicality
 warnings with stable symmetric loads. The distributed cases therefore use that sharp mesh
-and the conservative HLLC settings for all Euler folders. Only alpha zero has
-been checked quantitatively. Its force, symmetry, shock-angle, and physicality
-checks are enforced; the plateaued density residual remains an explicit
-qualified warning. The supporting evidence and rejected variants are recorded in
-`TUNING_REPORT.md`.
+and the conservative HLLC settings for all Euler folders. The 0°–4° Euler
+report sweep has archived force windows and zero physicality warnings. Alpha
+zero additionally enforces symmetry and shock-angle checks. The plateaued
+density residual remains an explicit qualified warning for all five cases. The
+supporting evidence and rejected variants are recorded in `TUNING_REPORT.md`.
 
 ## Repository contents
 
 | Path | Purpose |
 |---|---|
-| `cases/` | Euler, laminar, and SST cases at 0°, 4°, and 8° |
+| `cases/` | Euler cases at 0°–4° plus Euler, laminar, and SST cases at 0°, 4°, and 8° |
 | `meshes/` | three rounded-corner grids and one sharp Euler grid |
 | `geometry/` | nondimensional airfoil vertices and geometry notes |
 | `scripts/run_case.py` | two-stage runner with fail-closed acceptance checks |
 | `scripts/extract_wave_metrics.py` | native-grid shock-angle, symmetry, and y+ metrics |
+| `scripts/generate_su2_report_assets.py` | regenerate Euler figures, tables, load sweep, SU2-only surrogate panels, and common-scale comparisons |
+| release archive: `report_templates/` | SU2 laminar/SST comparison backgrounds; the script replaces their Euler column with the new native SU2 result |
+| release archive: `reference_report_assets/` | reference copies of the figures produced for the revised report |
+| `REPORT_REPRODUCTION_RESULTS.md` | archived five-case target values and the precise qualification status |
 | `EXPECTED_RESULTS.csv` | explicit acceptance ranges and unresolved `TBD` entries |
 | `TUNING_REPORT.md` | numerical choices, rejected variants, and limitations |
 | `CHATGPT_CODEX_RUN_GUIDE.md` | optional guided workflow using Codex |
@@ -104,6 +109,10 @@ Add the three `export` lines to `~/.zshrc` (macOS default) or `~/.bashrc`
 (common on Linux) only after the command works in the current terminal.
 
 ## 2. Download this repository
+
+The complete student archive and revised Word appendix are published as assets
+of release
+[`v1.1.0-su2-only-report-reproduction`](https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/releases/tag/v1.1.0-su2-only-report-reproduction).
 
 Use GitHub's **Code → Download ZIP** button, or clone it with Git:
 
@@ -249,133 +258,3 @@ The valid SU2 history group is `AERO_COEFF_SURF`; the obsolete
 
 | Folder | Model | Angle of attack | Current permitted use |
 |---|---|---:|---|
-| `euler_alpha0` | Euler | 0° | qualified sharp-wall teaching reference; not grid-qualified |
-| `euler_alpha4/8` | Euler | 4°, 8° | sharp-wall teaching setup; acceptance ranges pending |
-| `laminar_alpha0/4/8` | laminar Navier–Stokes | 0°, 4°, 8° | qualitative viscous contrast |
-| `sst_alpha0/4/8` | SST k–omega RANS | 0°, 4°, 8° | method exercise; not a benchmark |
-
-The Euler folders use `diamond_euler_sharp_medium_720x181.su2`; the laminar and
-SST folders retain the rounded-corner `diamond_medium_720x181.su2`. Some older
-0° and 4° viscous tables came from a 640x161 family that is not distributed
-here, so the viscous files remain teaching reruns rather than exact reproducers.
-
-### Euler geometry and tuning caveat
-
-The original rounded mesh regularizes all four vertices near
-`r_corner/c=0.001`. It remains appropriate for the documented viscous teaching
-geometry, but its rounded trailing edge caused a near-vacuum Euler artifact.
-The separate Euler mesh preserves the exact piecewise-linear sharp wall used by
-shock-expansion theory and uses moderate radial spacing. This removes the
-geometry mismatch at the wall, but one 720x181 solution still cannot establish
-grid independence.
-
-The Euler configs use HLLC, CFL 0.1 for a 600-iteration first-order startup, CFL
-0.2 for a 2000-iteration MUSCL stage, and a continuously active
-Venkatakrishnan limiter. The checked alpha-zero final window gave
-`CD=0.0273643`, about 4.0% below sharp theory, with zero physicality warnings;
-the residual plateaued near -4.155. This is why the result is a **qualified
-teaching reference**, not a benchmark.
-
-The exact sharp mesh can be regenerated with the optional advanced script:
-
-```bash
-python -m pip install numpy scipy
-python scripts/generate_sharp_euler_ogrid.py
-```
-
-Those packages are needed only for mesh regeneration, not for running SU2, the
-wrapper, or the metric extractor. The generator reproduces the distributed
-mesh byte-for-byte in the reference environment; verify it with
-`sha256sum -c SHA256SUMS.txt` after regeneration.
-
-The supplied coarse/medium/fine rounded meshes support a new viscous teaching
-sensitivity exercise. Only one sharp Euler mesh is supplied, so no Euler GCI or
-grid-independence claim is permitted. Keep physical model, geometry family,
-boundary conditions, numerical order, and acceptance settings fixed within any
-new study.
-
-### SST freestream inputs and remaining limitation
-
-To make the files deterministic, every SST config explicitly freezes the SU2
-v8.5.0 default values
-`FREESTREAM_TURBULENCEINTENSITY= 0.05` and
-`FREESTREAM_TURB2LAMVISCRATIO= 10.0`. These are documented software defaults,
-not an independently validated description of a particular wind tunnel. No
-sensitivity sweep is supplied. Students may vary them as an advanced exercise,
-but any published result must report the chosen inputs and y+ distribution.
-
-## 8. ParaView quick look
-
-1. Install ParaView from <https://www.paraview.org/download/>.
-2. Open `flow_second_order.vtu`.
-3. Click **Apply** in the Properties panel.
-4. Choose pressure, Mach number, temperature, or density from the coloring
-   menu. Use identical color-bar limits when comparing two models.
-5. For a numerical Schlieren image, compute a density-gradient magnitude; do
-   not use a visually filtered image for force or wave-angle measurement.
-
-## 9. Native-grid shock-angle, symmetry, and y+ metrics
-
-`scripts/extract_wave_metrics.py` uses only the Python standard library. It
-reads the ASCII restart and the matching SU2 mesh, reconstructs the density
-gradient by a local least-squares fit over native cell neighbors, selects one
-ridge point in each streamwise bin, and fits a line through the leading edge.
-It does not measure a filtered screenshot. For example, after a completed
-alpha-zero run:
-
-```bash
-python scripts/extract_wave_metrics.py \
-  cases/euler_alpha0/restart_second_order.csv \
-  --mesh meshes/diamond_euler_sharp_medium_720x181.su2 \
-  --branch upper --symmetry
-```
-
-This writes `case_metrics.json` and `shock_ridge_upper.csv` beside the restart.
-Inspect the ridge CSV or plot it over the unfiltered field before trusting the
-fit. Run again with `--branch lower` for the other leading-edge wave. Only when
-an independently calculated signed theory angle is available should you add:
-
-```bash
---reference-angle-deg SIGNED_THEORY_ANGLE
-```
-
-That option records `shock_angle_error_deg`; it does not decide the acceptable
-tolerance. The default window is specific to a leading-edge wave on this
-diamond airfoil. Change `--x-min`, `--x-max`, and the signed angle bounds for a
-different wave or geometry.
-
-With `--symmetry`, the script reports
-
-```text
-sqrt[ sum(rho(x,y)-rho(x,-y))^2 /
-      sum(((|rho(x,y)|+|rho(x,-y)|)/2)^2) ].
-```
-
-For y+, first export wall `Y_Plus` to a CSV file from the SU2 surface VTU in
-ParaView, then pass `--surface-csv exported_wall_yplus.csv`. The script records
-mean, 95th percentile, maximum, and sample count. It stops if the requested
-column is absent instead of silently fabricating y+.
-
-For populated density-based limits, `run_case.py` invokes this extractor on the
-just-created restart automatically and preserves any pre-existing metrics JSON.
-A populated tolerance with a missing or failed metric causes a production FAIL.
-
-## 10. Integrity, citation, and scientific scope
-
-`SHA256SUMS.txt` verifies the versioned teaching files. `VERSION.txt` records
-the repository and solver versions. For scholarly use, cite the version or
-commit used in the calculation; preferred metadata are in `CITATION.cff`.
-
-The public repository is
-<https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification>. A commit URL
-is immutable and is preferable in a printed book when exact file identity is
-important. A future GitHub Release or Zenodo DOI may be added later.
-
-The appendix's SA-DDES result is a short start-up pilot, not stationary
-scale-resolving statistics. It is excluded from this introductory steady-case
-package and belongs in a separately versioned research companion dataset.
-
-## License
-
-The repository is released under the MIT License. SU2 is a separate project
-with its own license; see the official SU2 repository for its terms.
