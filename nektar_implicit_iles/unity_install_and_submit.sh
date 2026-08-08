@@ -78,7 +78,24 @@ fi
 
 if ! command -v CompressibleFlowSolver >/dev/null 2>&1 || \
    ! command -v NekMesh >/dev/null 2>&1; then
-    bash "$CASE_ROOT/scripts/install_nektar_5.10_unity.sh" "$INSTALL_PREFIX"
+    if [[ -z "${SLURM_JOB_ID:-}" ]]; then
+        if ! command -v srun >/dev/null 2>&1; then
+            echo "srun is required to build Nektar++ on a Unity compute node" >&2
+            exit 1
+        fi
+        BUILD_JOBS=${NEKTAR_BUILD_JOBS:-8}
+        srun \
+            --partition="${NEKTAR_INSTALL_PARTITION:-cpu}" \
+            --nodes=1 \
+            --ntasks=1 \
+            --cpus-per-task="$BUILD_JOBS" \
+            --mem="${NEKTAR_INSTALL_MEMORY:-16G}" \
+            --time="${NEKTAR_INSTALL_TIME:-02:00:00}" \
+            env NEKTAR_BUILD_JOBS="$BUILD_JOBS" \
+            bash "$CASE_ROOT/scripts/install_nektar_5.10_unity.sh" "$INSTALL_PREFIX"
+    else
+        bash "$CASE_ROOT/scripts/install_nektar_5.10_unity.sh" "$INSTALL_PREFIX"
+    fi
     # shellcheck disable=SC1090
     source "$ENV_FILE"
 fi
@@ -93,4 +110,3 @@ done
 export NEKTAR_ENV_FILE="$ENV_FILE"
 echo "Submitting Nektar++ ILES profile=$PROFILE alpha=$ALPHA_DEG"
 bash "$CASE_ROOT/scripts/submit.sh" "$PROFILE" "$ALPHA_DEG"
-

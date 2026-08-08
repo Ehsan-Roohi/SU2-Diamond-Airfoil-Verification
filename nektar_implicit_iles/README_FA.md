@@ -22,10 +22,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airf
 ```
 
 این دستور Nektar++ را فقط در صورت نبودن حلگر در
-`/project/pi_roohie_umass_edu/apps/nektar-5.10` نصب می‌کند، مخزن را در فضای پروژه
-checkout می‌کند و job را با `sbatch` می‌فرستد. برای تغییر مسیرها می‌توان متغیرهای
-`UNITY_PROJECT_ROOT`، `NEKTAR_INSTALL_PREFIX` و `NEKTAR_CASE_CHECKOUT` را پیش از
-دستور تنظیم کرد.
+`/project/pi_roohie_umass_edu/apps/nektar-5.10` نصب می‌کند. build اولیه برای رعایت
+سیاست کلاستر با `srun` روی پارتیشن `cpu` انجام می‌شود؛ سپس مخزن در فضای پروژه
+checkout و job با `sbatch` ارسال می‌شود. برای تغییر مسیرها یا منابع نصب می‌توان
+متغیرهای `UNITY_PROJECT_ROOT`، `NEKTAR_INSTALL_PREFIX`، `NEKTAR_CASE_CHECKOUT`،
+`NEKTAR_INSTALL_PARTITION`، `NEKTAR_INSTALL_MEMORY` و `NEKTAR_INSTALL_TIME` را
+پیش از دستور تنظیم کرد.
 
 روش دستی بعد از clone یا استخراج ZIP:
 
