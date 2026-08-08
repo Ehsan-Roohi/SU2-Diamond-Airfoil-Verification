@@ -7,13 +7,30 @@ if [[ $# -lt 1 || $# -gt 3 ]]; then
 fi
 
 archive_dir="$(realpath "$1")"
-step="${2:-1800}"
-compare_step="${3:-1500}"
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 image="${MFC_IMAGE:-/project/pi_roohie_umass_edu/containers/mfc_latest_cpu.sif}"
 
 [[ -d "$archive_dir/silo_hdf5" ]] || { echo "ERROR: missing $archive_dir/silo_hdf5" >&2; exit 2; }
 [[ -s "$image" ]] || { echo "ERROR: missing MFC image $image" >&2; exit 2; }
+
+if [[ $# -eq 1 ]]; then
+    mapfile -t saved_steps < <(
+        find "$archive_dir/silo_hdf5/p0" -maxdepth 1 -type f -name '*.silo' -printf '%f\n' \
+            | sed -n 's/^\([0-9][0-9]*\)\.silo$/\1/p' \
+            | sort -n
+    )
+    if [[ ${#saved_steps[@]} -lt 2 ]]; then
+        echo "ERROR: at least two saved Silo steps are required for analysis." >&2
+        exit 2
+    fi
+    step="${saved_steps[-1]}"
+    compare_step="${saved_steps[-2]}"
+else
+    step="$2"
+    compare_step="${3:-1500}"
+fi
+
+echo "Analyzing saved fields: ${compare_step} -> ${step}"
 case "$archive_dir" in
     "$repo_dir"/*) ;;
     *) echo "ERROR: archive must be inside repository $repo_dir" >&2; exit 2 ;;
