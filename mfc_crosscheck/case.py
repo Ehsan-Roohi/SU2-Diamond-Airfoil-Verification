@@ -32,12 +32,14 @@ v_inf = mach * a_inf * math.sin(alpha)
 
 # The smoke grid uses a compact box for build/run checks. The longer grids use
 # a wider box (5c upstream and transverse, 5c downstream of the trailing edge)
-# while retaining 60 or 120 cells/chord. All presets remain diagnostics, not
+# while retaining 60 or 120 cells/chord. The physical presets advance for
+# about 13.5 chord-convection lengths, approximately one complete flow-through
+# along the Mach-3 freestream direction. All presets remain diagnostics, not
 # wall-resolved SST or a replacement for the SU2 20c farfield study.
 grids = {
     "smoke": {"m": 119, "n": 99, "steps": 20, "x": (-2.0, 4.0), "y": (-2.5, 2.5)},
-    "coarse": {"m": 659, "n": 599, "steps": 900, "x": (-5.0, 6.0), "y": (-5.0, 5.0)},
-    "medium": {"m": 1319, "n": 1199, "steps": 1800, "x": (-5.0, 6.0), "y": (-5.0, 5.0)},
+    "coarse": {"m": 659, "n": 599, "steps": 5400, "x": (-5.0, 6.0), "y": (-5.0, 5.0)},
+    "medium": {"m": 1319, "n": 1199, "steps": 10800, "x": (-5.0, 6.0), "y": (-5.0, 5.0)},
 }
 grid = grids[args.grid]
 steps = args.steps if args.steps is not None else grid["steps"]
@@ -48,7 +50,8 @@ dx = (x_end - x_beg) / (grid["m"] + 1)
 dy = (y_end - y_beg) / (grid["n"] + 1)
 
 # Conservative explicit step for RK3/WENO at M=3. The coarse and medium
-# presets advance for about 2.25 chord-convection times.
+# The longer presets now cover about one domain flow-through. Earlier
+# 900/1800-step runs were shown by saved-field comparisons to remain transient.
 dt = 0.20 * min(dx, dy) / (mach * a_inf + a_inf)
 viscous = args.mode == "laminar"
 
