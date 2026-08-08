@@ -44,9 +44,10 @@ cmake -S "$PREFIX/src/nektar" -B "$PREFIX/build" \
     -DNEKTAR_USE_MPI=ON \
     -DNEKTAR_USE_HDF5=OFF \
     -DNEKTAR_USE_FFTW=OFF \
-    -DNEKTAR_USE_METIS=OFF \
-    -DNEKTAR_USE_SCOTCH=ON \
-    -DTHIRDPARTY_BUILD_SCOTCH=ON \
+    -DNEKTAR_USE_SCOTCH=OFF \
+    -DTHIRDPARTY_BUILD_SCOTCH=OFF \
+    -DNEKTAR_USE_METIS=ON \
+    -DTHIRDPARTY_BUILD_METIS=ON \
     -DTHIRDPARTY_BUILD_BOOST=ON \
     -DTHIRDPARTY_BUILD_ZLIB=ON \
     -DTHIRDPARTY_BUILD_TINYXML=ON \
@@ -58,6 +59,18 @@ cmake -S "$PREFIX/src/nektar" -B "$PREFIX/build" \
     -DNEKTAR_BUILD_TESTS=OFF \
     -DNEKTAR_BUILD_PERFORMANCE_TESTS=OFF \
     -DNEKTAR_BUILD_PYTHON=OFF
+
+CACHE_FILE="$PREFIX/build/CMakeCache.txt"
+for expected in \
+    'NEKTAR_USE_SCOTCH:BOOL=OFF' \
+    'THIRDPARTY_BUILD_SCOTCH:BOOL=OFF' \
+    'NEKTAR_USE_METIS:BOOL=ON' \
+    'THIRDPARTY_BUILD_METIS:BOOL=ON'; do
+    if ! grep -qx "$expected" "$CACHE_FILE"; then
+        echo "unexpected Nektar++ partitioner configuration: $expected" >&2
+        exit 1
+    fi
+done
 
 cmake --build "$PREFIX/build" --parallel "${NEKTAR_BUILD_JOBS:-8}"
 cmake --install "$PREFIX/build"

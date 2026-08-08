@@ -65,6 +65,8 @@ bash scripts/install_nektar_5.10_unity.sh /project/pi_roohie_umass_edu/apps/nekt
 ```
 
 سپس مسیر چاپ‌شده در انتهای نصب را در shell خود `source` کنید. اسکریپت نصب، Nektar++ را در مسیر پروژه نصب می‌کند و چیزی را در home تغییر نمی‌دهد.
+برای پارتیشن‌بندی مش MPI، بستهٔ داخلی METIS ساخته می‌شود؛ Scotch غیرفعال است تا
+نصب روی Unity به ابزار جداگانهٔ `flex` وابسته نباشد.
 
 ## پروفایل‌ها
 
