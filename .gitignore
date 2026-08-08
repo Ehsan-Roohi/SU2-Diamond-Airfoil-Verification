@@ -19,6 +19,18 @@ smoke_test/flow_*.vtu
 smoke_test/surface_flow_*.csv
 smoke_test/logs/
 
+# MFC cross-check outputs
+mfc_crosscheck/D/
+mfc_crosscheck/p_all/
+mfc_crosscheck/restart_data/
+mfc_crosscheck/silo_hdf5/
+mfc_crosscheck/*.inp
+mfc_crosscheck/*.dat
+mfc_crosscheck/*.inf
+mfc_crosscheck/*.out
+mfc_crosscheck/*.err
+mfc_runs/
+
 # Editor and operating-system files
 .DS_Store
 Thumbs.db
