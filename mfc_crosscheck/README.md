@@ -38,8 +38,8 @@ turn is `38 deg`, so its leading-edge shock must detach.
 | Preset | Approx. cells/chord | Box | Default steps | Purpose |
 |---|---:|---|---:|---|
 | `smoke` | 20 | compact | 20 | build and runtime check |
-| `coarse` | 60 | 5c upstream/transverse | 900 | first physical diagnostic |
-| `medium` | 120 | 5c upstream/transverse | 1800 | refined diagnostic |
+| `coarse` | 60 | 5c upstream/transverse | 5400 | one flow-through diagnostic |
+| `medium` | 120 | 5c upstream/transverse | 10800 | refined one-flow-through diagnostic |
 
 The box still does not reproduce the SU2 20-chord farfield. Before using MFC
 loads in a publication, perform MFC-specific grid and far-boundary studies.
@@ -59,6 +59,18 @@ bash mfc_crosscheck/unity_submit_mfc.sh 20 euler coarse
 bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium
 bash mfc_crosscheck/unity_submit_mfc.sh 8 laminar coarse
 ```
+
+An optional fourth argument overrides the number of time steps. For example,
+the recommended rerun of the Mach-3, 30-degree Euler case is:
+
+```bash
+bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium 10800
+```
+
+The earlier 1800-step medium run advanced only `t=0.75`, or 2.25 chord
+convection lengths. Its pressure and density fields changed by approximately
+23% and 15% between the final saved fields, so it is a startup transient and
+must not be used for validation.
 
 The wrapper loads `apptainer/latest`, pulls the official MFC CPU container only
 if it is missing, and submits `unity_mfc_cpu.sbatch`. The default container is:
@@ -111,9 +123,9 @@ the archive's `analysis/` directory:
 - `mfc_fields_closeup.png`: pressure, density, Mach, temperature,
   density-gradient, and native Schlieren close-ups;
 - `mfc_saved_field_change.png`: common-scale fields and differences between
-  steps 1500 and 1800;
-- `mfc_shock_ray.png` and `mfc_shock_ray.csv`: an upstream-ray diagnostic and
-  estimated leading-edge shock stand-off;
+  the last two available saved steps (selected automatically);
+- `mfc_shock_ray.png` and `mfc_shock_ray.csv`: an upstream-ray diagnostic and,
+  only when a nontrivial jump is resolved, estimated leading-edge stand-off;
 - `mfc_metrics.json` and `mfc_validation_summary.txt`: numerical checks,
   including near-body relative L2 changes and freestream preservation.
 
@@ -122,3 +134,9 @@ Visible wake-like spots or Cartesian-grid ripples are therefore numerical or
 transient structures, not evidence of modeled turbulence. Do not use MFC
 loads or stand-off values in a publication until the stationarity, grid, and
 far-boundary checks all pass.
+
+If the upstream ray remains at freestream values, the report records
+`NOT_DETECTED` instead of returning the ray's lower bound (`s/c=0.05`) as a
+spurious stand-off distance. At 30 degrees this is a physical-consistency
+failure because the 38-degree windward turn exceeds the Mach-3 attached-shock
+limit.
