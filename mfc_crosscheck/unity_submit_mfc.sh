@@ -5,6 +5,7 @@ alpha="${1:-30}"
 mode="${2:-euler}"
 grid="${3:-medium}"
 steps="${4:-}"
+save_every="${5:-}"
 
 if [[ ! "$alpha" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
     echo "ERROR: alpha must be numeric; received '$alpha'." >&2
@@ -23,6 +24,10 @@ esac
 
 if [[ -n "$steps" && ! "$steps" =~ ^[1-9][0-9]*$ ]]; then
     echo "ERROR: optional steps argument must be a positive integer; received '$steps'." >&2
+    exit 2
+fi
+if [[ -n "$save_every" && ! "$save_every" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: optional save-every argument must be a positive integer; received '$save_every'." >&2
     exit 2
 fi
 
@@ -44,7 +49,7 @@ fi
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 batch_file="${repo_dir}/mfc_crosscheck/unity_mfc_cpu.sbatch"
 
-echo "Submitting MFC: alpha=${alpha}, mode=${mode}, grid=${grid}, steps=${steps:-preset-default}"
+echo "Submitting MFC v2: alpha=${alpha}, mode=${mode}, grid=${grid}, steps=${steps:-preset-default}, save_every=${save_every:-preset-default}"
 sbatch \
-    --export=ALL,MFC_REPO_DIR="$repo_dir",MFC_IMAGE="$image",MFC_ALPHA="$alpha",MFC_MODE="$mode",MFC_GRID="$grid",MFC_STEPS="$steps" \
+    --export=ALL,MFC_REPO_DIR="$repo_dir",MFC_IMAGE="$image",MFC_ALPHA="$alpha",MFC_MODE="$mode",MFC_GRID="$grid",MFC_STEPS="$steps",MFC_SAVE_EVERY="$save_every" \
     "$batch_file"

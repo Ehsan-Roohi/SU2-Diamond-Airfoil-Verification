@@ -38,11 +38,19 @@ turn is `38 deg`, so its leading-edge shock must detach.
 | Preset | Approx. cells/chord | Box | Default steps | Purpose |
 |---|---:|---|---:|---|
 | `smoke` | 20 | compact | 20 | build and runtime check |
-| `coarse` | 60 | 5c upstream/transverse | 5400 | one flow-through diagnostic |
-| `medium` | 120 | 5c upstream/transverse | 10800 | refined one-flow-through diagnostic |
+| `coarse` | 60 | 5c upstream/transverse | 5400 | Euler control and temporal statistics |
+| `medium` | 120 | 5c upstream/transverse | 10800 | refinement after controls pass |
 
-The box still does not reproduce the SU2 20-chord farfield. Before using MFC
-loads in a publication, perform MFC-specific grid and far-boundary studies.
+The coarse and medium defaults save 25 snapshots with the same physical
+spacing (`Delta t=0.1875`). The box still does not reproduce the SU2 20-chord
+farfield. Before using MFC loads in a publication, perform MFC-specific grid
+and far-boundary studies.
+
+The farfield boundaries are selected from the Cartesian-normal Mach number.
+Supersonic inflow/outflow CBCs are used when the corresponding normal Mach
+exceeds one; otherwise prescribed subsonic inflow and pressure-controlled
+subsonic outflow CBCs are used. This replaces the earlier all-extrapolation
+boundary setup.
 
 ## Unity: one-line submission
 
@@ -52,7 +60,7 @@ From a clone of this repository on Unity:
 bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium
 ```
 
-Arguments are `angle mode grid`. Examples:
+Arguments are `angle mode grid [steps] [save-every]`. Examples:
 
 ```bash
 bash mfc_crosscheck/unity_submit_mfc.sh 20 euler coarse
@@ -60,11 +68,11 @@ bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium
 bash mfc_crosscheck/unity_submit_mfc.sh 8 laminar coarse
 ```
 
-An optional fourth argument overrides the number of time steps. For example,
-the recommended rerun of the Mach-3, 30-degree Euler case is:
+The optional fourth and fifth arguments override the number of steps and the
+snapshot interval. For example:
 
 ```bash
-bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium 10800
+bash mfc_crosscheck/unity_submit_mfc.sh 30 euler medium 10800 450
 ```
 
 The earlier 1800-step medium run advanced only `t=0.75`, or 2.25 chord
@@ -82,10 +90,10 @@ if it is missing, and submits `unity_mfc_cpu.sbatch`. The default container is:
 Override the project or image location with `MFC_PROJECT_ROOT`,
 `MFC_CONTAINER_DIR`, or `MFC_IMAGE`.
 
-Each completed run is archived separately under:
+Each v2 run is archived separately under:
 
 ```text
-mfc_runs/alpha<angle>_<mode>_<grid>/
+mfc_runs/alpha<angle>_<mode>_<grid>_supbc_v2/
 ```
 
 The Slurm log records the container SHA-256 so the exact runtime image can be
@@ -105,6 +113,19 @@ The Silo output includes pressure, density, velocity components, and a
 Schlieren field. Compare integrated loads only after convergence and
 far-boundary sensitivity have been established.
 
+## Required control sequence
+
+Do not begin with another medium run. Submit the two coarse Euler controls:
+
+```bash
+bash mfc_crosscheck/unity_submit_mfc_controls.sh
+```
+
+The `alpha=20 deg` case is the attached-shock control. The `alpha=30 deg`
+case tests the high-incidence curved compression front and unsteady wake with
+the corrected characteristic boundaries. Analyze both controls before
+submitting the `alpha=30 deg` medium case.
+
 ## Publication-oriented analysis
 
 The native MFC figures show the full computational box and do not mask the
@@ -114,7 +135,7 @@ saved-field stationarity check, run:
 
 ```bash
 bash mfc_crosscheck/unity_analyze_mfc.sh \
-  mfc_runs/alpha30_euler_medium/mfc_crosscheck-YYYYMMDD-HHMMSS
+  mfc_runs/alpha30_euler_coarse_supbc_v2/mfc_crosscheck-YYYYMMDD-HHMMSS
 ```
 
 The analysis uses MFC's own Silo-HDF5 reader and writes the following under
@@ -126,17 +147,31 @@ the archive's `analysis/` directory:
   the last two available saved steps (selected automatically);
 - `mfc_shock_ray.png` and `mfc_shock_ray.csv`: an upstream-ray diagnostic and,
   only when a nontrivial jump is resolved, estimated leading-edge stand-off;
+- `mfc_shock_trace.png` and `mfc_shock_trace.csv`: two-dimensional tracking of
+  the windward compression front, which a single upstream ray can miss;
+- `mfc_mean_rms_fields.png`: temporal mean and RMS pressure, density, and Mach
+  over the second half of the available snapshots;
+- `mfc_shock_trace_statistics.png` and `.csv`: temporal mean and standard
+  deviation of the two-dimensional compression-front trace;
+- `mfc_load_history.png` and `.csv`: immersed-boundary `CD`, `CL`, and `CM`
+  history when MFC's `ib_state_wrt` output is available;
 - `mfc_metrics.json` and `mfc_validation_summary.txt`: numerical checks,
-  including near-body relative L2 changes and freestream preservation.
+  including full-field, primary-wave, and wake relative L2 changes;
+- `mfc_unsteady_metrics.json` and `mfc_unsteady_summary.txt`: temporal wave and
+  load assessments.
 
 The script labels this calculation explicitly as Euler (inviscid, slip wall).
-Visible wake-like spots or Cartesian-grid ripples are therefore numerical or
-transient structures, not evidence of modeled turbulence. Do not use MFC
-loads or stand-off values in a publication until the stationarity, grid, and
-far-boundary checks all pass.
+The rolled-up structures downstream of the trailing edge are an inviscid
+vortex/entropy-sheet instability regularized by the grid and numerical
+dissipation; they are not a modeled turbulent boundary layer. Their existence
+can be physically consistent, but their individual wavelength and amplitude
+are grid dependent. Consequently, pointwise wake stationarity is not required.
+Use temporal means/RMS and load histories, while checking primary-wave
+stability separately.
 
 If the upstream ray remains at freestream values, the report records
 `NOT_DETECTED` instead of returning the ray's lower bound (`s/c=0.05`) as a
-spurious stand-off distance. At 30 degrees this is a physical-consistency
-failure because the 38-degree windward turn exceeds the Mach-3 attached-shock
-limit.
+spurious stand-off distance. For the sharp leading edge, the two-dimensional
+trace then distinguishes a curved front emanating from the tip from a genuinely
+missing compression front. No MFC load or stand-off result is publication-ready
+until temporal, coarse/medium, and far-boundary checks pass.

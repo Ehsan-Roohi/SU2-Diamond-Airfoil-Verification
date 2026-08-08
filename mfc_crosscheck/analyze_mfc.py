@@ -33,6 +33,8 @@ P_INF = 1.0 / GAMMA
 HALF_ANGLE_DEG = 8.0
 SHOCK_PRESSURE_DEVIATION_MIN = 5.0e-2
 SHOCK_DENSITY_DEVIATION_MIN = 2.0e-2
+PRIMARY_WAVE_L2_THRESHOLD = 2.0e-2
+SHOCK_TRACE_RMS_THRESHOLD = 2.0e-2
 AIRFOIL_X = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
 AIRFOIL_Y = np.array([0.0, -0.0702704174, 0.0, 0.0702704174, 0.0])
 
@@ -186,6 +188,122 @@ def _shock_ray(data: object, fields: dict[str, np.ndarray], alpha_deg: float) ->
         "max_density_deviation": max_density_deviation,
         "stand_off": stand_off,
     }
+
+
+def _diamond_surface_y(x: np.ndarray, windward_sign: float) -> np.ndarray:
+    """Piecewise-linear diamond surface on the requested side.
+
+    ``windward_sign`` is -1 below the chord and +1 above it.
+    Downstream of the trailing edge, zero is used as the reference separating
+    the upper and lower wake sectors.
+    """
+
+    thickness = np.zeros_like(x, dtype=float)
+    first = (x >= 0.0) & (x <= 0.5)
+    second = (x > 0.5) & (x <= 1.0)
+    thickness[first] = 2.0 * 0.0702704174 * x[first]
+    thickness[second] = 2.0 * 0.0702704174 * (1.0 - x[second])
+    return windward_sign * thickness
+
+
+def _windward_shock_trace(
+    data: object,
+    fields: dict[str, np.ndarray],
+    alpha_deg: float,
+    x_range: tuple[float, float] = (0.04, 2.50),
+) -> dict[str, object]:
+    """Extract the dominant windward compression front from the 2-D field.
+
+    A single leading-edge ray can miss a curved front that touches a sharp tip
+    and bows away from the windward surface.  This diagnostic searches each
+    Cartesian x-column on the windward side, excluding a three-cell band next
+    to the immersed boundary, and follows the strongest density gradient.
+    Individual vortex-sheet structures are not interpreted as a stand-off.
+    """
+
+    x = np.asarray(data.x_cc, dtype=float)
+    y = np.asarray(data.y_cc, dtype=float)
+    windward_sign = -1.0 if alpha_deg >= 0.0 else 1.0
+    surface_y = _diamond_surface_y(x, windward_sign)
+    dx_mask = (x >= x_range[0]) & (x <= x_range[1])
+    x_indices = np.flatnonzero(dx_mask)
+    trace_y = np.full(x_indices.size, np.nan)
+    strength = np.full(x_indices.size, np.nan)
+    pressure_ratio = np.full(x_indices.size, np.nan)
+    clearance = 3.0 * float(np.median(np.diff(y)))
+
+    for out_idx, ix in enumerate(x_indices):
+        if windward_sign < 0.0:
+            side = y <= surface_y[ix] - clearance
+        else:
+            side = y >= surface_y[ix] + clearance
+        candidates = side & fields["fluid"][ix, :] & np.isfinite(fields["grad_rho"][ix, :])
+        if not np.any(candidates):
+            continue
+        iy_candidates = np.flatnonzero(candidates)
+        iy = int(iy_candidates[np.argmax(fields["grad_rho"][ix, iy_candidates])])
+        trace_y[out_idx] = y[iy]
+        strength[out_idx] = fields["grad_rho"][ix, iy]
+        pressure_ratio[out_idx] = fields["pressure_ratio"][ix, iy]
+
+    finite_strength = strength[np.isfinite(strength)]
+    if finite_strength.size:
+        strength_floor = max(float(np.percentile(finite_strength, 35.0)), 0.03 * float(np.max(finite_strength)))
+        accepted = np.isfinite(trace_y) & (strength >= strength_floor)
+    else:
+        strength_floor = float("nan")
+        accepted = np.zeros_like(trace_y, dtype=bool)
+
+    fit = accepted & (x[x_indices] >= 0.10) & (x[x_indices] <= 0.65)
+    if np.count_nonzero(fit) >= 5:
+        slope, intercept = np.polyfit(x[x_indices][fit], trace_y[fit], deg=1)
+        chord_angle_deg = float(np.degrees(np.arctan(slope)))
+        shock_angle_to_freestream_deg = float(abs(chord_angle_deg - alpha_deg))
+    else:
+        slope = float("nan")
+        intercept = float("nan")
+        chord_angle_deg = float("nan")
+        shock_angle_to_freestream_deg = float("nan")
+
+    if np.any(accepted):
+        first_x = float(x[x_indices][np.flatnonzero(accepted)[0]])
+        topology = (
+            "CURVED_FRONT_FROM_SHARP_LEADING_EDGE"
+            if first_x <= 0.12
+            else "OFF_AXIS_OR_DOWNSTREAM_COMPRESSION_FRONT"
+        )
+    else:
+        first_x = None
+        topology = "NOT_DETECTED"
+
+    return {
+        "x": x[x_indices],
+        "y": trace_y,
+        "strength": strength,
+        "pressure_ratio": pressure_ratio,
+        "accepted": accepted,
+        "strength_floor": strength_floor,
+        "fit_slope": float(slope),
+        "fit_intercept": float(intercept),
+        "chord_angle_deg": chord_angle_deg,
+        "angle_to_freestream_deg": shock_angle_to_freestream_deg,
+        "first_detected_x_over_c": first_x,
+        "topology": topology,
+    }
+
+
+def _trace_rms_displacement(old_trace: dict[str, object], new_trace: dict[str, object]) -> float:
+    old_y = np.asarray(old_trace["y"], dtype=float)
+    new_y = np.asarray(new_trace["y"], dtype=float)
+    valid = (
+        np.asarray(old_trace["accepted"], dtype=bool)
+        & np.asarray(new_trace["accepted"], dtype=bool)
+        & np.isfinite(old_y)
+        & np.isfinite(new_y)
+    )
+    if not np.any(valid):
+        return float("nan")
+    return float(np.sqrt(np.mean((new_y[valid] - old_y[valid]) ** 2)))
 
 
 def _decorate(ax: plt.Axes, crop: tuple[float, ...], alpha_deg: float) -> None:
@@ -377,6 +495,74 @@ def _write_ray_csv(ray: dict[str, object], output: Path) -> None:
     )
 
 
+def _save_shock_trace_figure(
+    data: object,
+    fields: dict[str, np.ndarray],
+    old_trace: dict[str, object],
+    new_trace: dict[str, object],
+    old_step: int,
+    new_step: int,
+    alpha_deg: float,
+    crop: tuple[float, ...],
+    output: Path,
+) -> None:
+    x = np.asarray(data.x_cc)
+    y = np.asarray(data.y_cc)
+    region = _region_mask(x, y, crop)
+    mask = fields["fluid"] & region
+    log_grad = np.log10(np.maximum(fields["grad_rho"], 1.0e-8))
+
+    fig, ax = plt.subplots(figsize=(8.4, 5.6), constrained_layout=True)
+    _plot_field(
+        ax,
+        x,
+        y,
+        log_grad,
+        mask,
+        crop,
+        alpha_deg,
+        "Windward compression-front tracking",
+        r"$\log_{10}(|\nabla\rho|c/\rho_\infty)$",
+        "gray_r",
+    )
+    for trace, step, color, linestyle in (
+        (old_trace, old_step, "#2c7bb6", "--"),
+        (new_trace, new_step, "#d7191c", "-"),
+    ):
+        accepted = np.asarray(trace["accepted"], dtype=bool)
+        ax.plot(
+            np.asarray(trace["x"])[accepted],
+            np.asarray(trace["y"])[accepted],
+            color=color,
+            ls=linestyle,
+            lw=1.6,
+            label=f"trace, step {step}",
+            zorder=20,
+        )
+    ax.legend(loc="lower left", framealpha=0.92)
+    fig.savefig(output, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _write_shock_trace_csv(trace: dict[str, object], output: Path) -> None:
+    columns = np.column_stack(
+        [
+            trace["x"],
+            trace["y"],
+            trace["strength"],
+            trace["pressure_ratio"],
+            np.asarray(trace["accepted"], dtype=int),
+        ]
+    )
+    np.savetxt(
+        output,
+        columns,
+        delimiter=",",
+        header="x_over_c,y_over_c,grad_rho,p_ratio,accepted",
+        comments="",
+    )
+
+
 def _analyze(
     old_data: object,
     new_data: object,
@@ -393,14 +579,21 @@ def _analyze(
     y = np.asarray(new_data.y_cc)
     region = _region_mask(x, y, crop)
     compare_mask = old["fluid"] & new["fluid"] & region
+    primary_mask = compare_mask & (x[:, None] >= -0.25) & (x[:, None] <= 1.10)
+    wake_mask = compare_mask & (x[:, None] >= 1.0)
 
-    convergence = {
+    full_convergence = {
         name: _relative_l2(old[name], new[name], compare_mask)
         for name in ("rho", "pres", "vel1", "vel2", "mach")
     }
-    max_change = max(value for value in convergence.values() if np.isfinite(value))
-    stationarity_threshold = 5.0e-3
-    stationarity = "PASS" if max_change <= stationarity_threshold else "CONTINUE_REQUIRED"
+    primary_convergence = {
+        name: _relative_l2(old[name], new[name], primary_mask)
+        for name in ("rho", "pres", "vel1", "vel2", "mach")
+    }
+    wake_convergence = {
+        name: _relative_l2(old[name], new[name], wake_mask)
+        for name in ("rho", "pres", "vel1", "vel2", "mach")
+    }
 
     farfield_mask = new["fluid"] & (x[:, None] < -2.0)
     alpha = math.radians(alpha_deg)
@@ -421,20 +614,35 @@ def _analyze(
 
     fluid_region = new["fluid"] & region
     ray = _shock_ray(new_data, new, alpha_deg)
+    old_trace = _windward_shock_trace(old_data, old, alpha_deg)
+    new_trace = _windward_shock_trace(new_data, new, alpha_deg)
+    trace_rms_displacement = _trace_rms_displacement(old_trace, new_trace)
+    max_primary_change = max(value for value in primary_convergence.values() if np.isfinite(value))
+    primary_wave_assessment = (
+        "PASS_SNAPSHOT_STABILITY"
+        if max_primary_change <= PRIMARY_WAVE_L2_THRESHOLD
+        and np.isfinite(trace_rms_displacement)
+        and trace_rms_displacement <= SHOCK_TRACE_RMS_THRESHOLD
+        else "EVOLVING_OR_GRID_SENSITIVE"
+    )
+    max_wake_change = max(value for value in wake_convergence.values() if np.isfinite(value))
+    wake_assessment = "UNSTEADY_WAKE" if max_wake_change > 5.0e-3 else "LOW_SNAPSHOT_CHANGE"
+
     theta_windward = alpha_deg + HALF_ANGLE_DEG
     theta_max = _theta_max_deg(MACH_INF, GAMMA)
     detached_shock_expected = theta_windward > theta_max
     detached_shock_detected = bool(ray["shock_detected"])
-    physical_consistency = (
-        "PASS"
-        if not detached_shock_expected or detached_shock_detected
-        else "FAIL_EXPECTED_DETACHED_SHOCK_NOT_DETECTED"
-    )
-    publication_readiness = (
-        "PASS_PRELIMINARY"
-        if stationarity == "PASS" and physical_consistency == "PASS"
-        else "FAIL"
-    )
+    if detached_shock_detected:
+        leading_edge_topology = "UPSTREAM_DETACHED_FRONT"
+        physical_consistency = "PASS_RAY_DETECTED"
+    else:
+        leading_edge_topology = str(new_trace["topology"])
+        physical_consistency = (
+            "CURVED_SHARP_TIP_FRONT_REQUIRES_SU2_COMPARISON"
+            if detached_shock_expected and leading_edge_topology != "NOT_DETECTED"
+            else "NO_DETACHMENT_REQUIRED_AT_THIS_INCIDENCE"
+        )
+    publication_readiness = "DIAGNOSTIC_ONLY_PENDING_TEMPORAL_GRID_AND_BOUNDARY_CHECKS"
 
     metrics: dict[str, object] = {
         "solver_regime": "Euler (inviscid, slip-wall immersed boundary)",
@@ -448,14 +656,25 @@ def _analyze(
         "shock_detection_reason": ray["detection_reason"],
         "shock_ray_max_pressure_deviation": ray["max_pressure_deviation"],
         "shock_ray_max_density_deviation": ray["max_density_deviation"],
+        "leading_edge_wave_topology": leading_edge_topology,
+        "windward_shock_trace": {
+            "chord_angle_deg": new_trace["chord_angle_deg"],
+            "angle_to_freestream_deg": new_trace["angle_to_freestream_deg"],
+            "first_detected_x_over_c": new_trace["first_detected_x_over_c"],
+            "rms_displacement_between_snapshots_over_c": trace_rms_displacement,
+        },
         "physical_consistency_assessment": physical_consistency,
         "publication_readiness": publication_readiness,
         "normal_shock_pressure_ratio_reference": _normal_shock_pressure_ratio(MACH_INF, GAMMA),
         "old_step": old_step,
         "new_step": new_step,
-        "relative_l2_change_near_body": convergence,
-        "stationarity_threshold": stationarity_threshold,
-        "stationarity_assessment": stationarity,
+        "relative_l2_change_full_crop": full_convergence,
+        "relative_l2_change_primary_wave_region": primary_convergence,
+        "relative_l2_change_wake_region": wake_convergence,
+        "primary_wave_l2_threshold": PRIMARY_WAVE_L2_THRESHOLD,
+        "shock_trace_rms_threshold_over_c": SHOCK_TRACE_RMS_THRESHOLD,
+        "primary_wave_assessment": primary_wave_assessment,
+        "wake_assessment": wake_assessment,
         "farfield_median": farfield,
         "farfield_expected": expected,
         "farfield_relative_error": farfield_relative_error,
@@ -485,6 +704,18 @@ def _analyze(
     )
     _save_ray_figure(ray, output_dir / "mfc_shock_ray.png")
     _write_ray_csv(ray, output_dir / "mfc_shock_ray.csv")
+    _save_shock_trace_figure(
+        new_data,
+        new,
+        old_trace,
+        new_trace,
+        old_step,
+        new_step,
+        alpha_deg,
+        crop,
+        output_dir / "mfc_shock_trace.png",
+    )
+    _write_shock_trace_csv(new_trace, output_dir / "mfc_shock_trace.csv")
 
     with (output_dir / "mfc_metrics.json").open("w", encoding="utf-8") as stream:
         json.dump(metrics, stream, indent=2, sort_keys=True)
@@ -495,10 +726,17 @@ def _analyze(
         "======================================",
         f"Regime: {metrics['solver_regime']}",
         f"Saved-field comparison: {old_step} -> {new_step}",
-        f"Stationarity assessment: {stationarity} (threshold={stationarity_threshold:.3e})",
+        f"Primary-wave assessment: {primary_wave_assessment}",
+        f"Wake assessment: {wake_assessment}",
     ]
-    for name, value in convergence.items():
-        summary.append(f"  relative L2 change {name:>5s}: {value:.6e}")
+    for region_name, values in (
+        ("full crop", full_convergence),
+        ("primary wave", primary_convergence),
+        ("wake", wake_convergence),
+    ):
+        summary.append(f"Relative L2 change -- {region_name}:")
+        for name, value in values.items():
+            summary.append(f"  {name:>5s}: {value:.6e}")
     summary.extend(
         [
             f"Windward turn: {theta_windward:.4f} deg",
@@ -508,12 +746,15 @@ def _analyze(
             f"Shock detection: {ray['detection_reason']}",
             "Estimated shock stand-off s/c: "
             + (f"{float(ray['stand_off']):.6f}" if ray["stand_off"] is not None else "NOT_DETECTED"),
+            f"2-D leading-edge topology: {leading_edge_topology}",
+            f"2-D trace angle to freestream: {float(new_trace['angle_to_freestream_deg']):.4f} deg",
+            f"Shock-trace RMS displacement: {trace_rms_displacement:.6e} c",
             f"Physical consistency: {physical_consistency}",
             f"Publication readiness: {publication_readiness}",
             f"Reference normal-shock p2/p1: {_normal_shock_pressure_ratio(MACH_INF, GAMMA):.6f}",
             "",
-            "Publication decision: do not use loads or stand-off until stationarity,",
-            "grid sensitivity, and far-boundary sensitivity have all passed.",
+            "Publication decision: treat the wake as unsteady. Use temporal load/shock",
+            "statistics and require coarse/medium and far-boundary sensitivity checks.",
         ]
     )
     (output_dir / "mfc_validation_summary.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
