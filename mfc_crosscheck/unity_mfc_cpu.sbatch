@@ -60,8 +60,13 @@ apptainer exec --writable-tmpfs \
         set -euo pipefail
         export UV_CACHE_DIR=/tmp/mfc-uv-cache
         export XDG_CACHE_HOME=/tmp/mfc-xdg-cache
+        isolated_case_dir=/tmp/mfc-diamond-${SLURM_JOB_ID}/mfc_crosscheck
+        mkdir -p \"\${isolated_case_dir}\"
+        cp /work/mfc_crosscheck/case.py \"\${isolated_case_dir}/case.py\"
+        cp /work/mfc_crosscheck/Diamond_Airfoil.stl \"\${isolated_case_dir}/Diamond_Airfoil.stl\"
+        echo \"ISOLATED_CASE_DIR=\${isolated_case_dir}\"
         cd /opt/MFC
-        ./mfc.sh run /work/mfc_crosscheck/case.py \
+        ./mfc.sh run \"\${isolated_case_dir}/case.py\" \
             -n ${SLURM_NTASKS} \
             --archive /work/mfc_runs/${tag} -- \
             --alpha ${MFC_ALPHA} \

@@ -90,6 +90,13 @@ if it is missing, and submits `unity_mfc_cpu.sbatch`. The default container is:
 Override the project or image location with `MFC_PROJECT_ROOT`,
 `MFC_CONTAINER_DIR`, or `MFC_IMAGE`.
 
+Every Slurm job copies `case.py` and the STL into a job-specific temporary
+case directory before invoking MFC. This isolation is required because MFC
+writes artifacts next to its input case; running two angles from the same case
+directory would otherwise mix snapshots from different jobs or retain an older
+grid in a new archive. The temporal analyzer rejects mixed grid sizes and
+farfield velocities before producing validation figures.
+
 Each v2 run is archived separately under:
 
 ```text

@@ -78,11 +78,41 @@ def _online_field_statistics(
     last_data: object | None = None
     plot_mask: np.ndarray | None = None
     used_steps: list[int] = []
+    reference_shape: tuple[int, int] | None = None
+    expected_velocity = np.array(
+        [MACH_INF * math.cos(math.radians(alpha_deg)), MACH_INF * math.sin(math.radians(alpha_deg))]
+    )
 
     for step, data in items:
         fields = _derived(data)
         x = np.asarray(data.x_cc)
         y = np.asarray(data.y_cc)
+        shape = (x.size, y.size)
+        if reference_shape is None:
+            reference_shape = shape
+        elif shape != reference_shape:
+            raise RuntimeError(
+                "Mixed grid resolutions detected in one MFC archive: "
+                f"expected {reference_shape}, found {shape} at step {step}. "
+                "Do not combine or interpret this archive."
+            )
+
+        farfield = fields["fluid"] & (x[:, None] < -2.0)
+        if np.any(farfield):
+            observed_velocity = np.array(
+                [
+                    float(np.median(fields["vel1"][farfield])),
+                    float(np.median(fields["vel2"][farfield])),
+                ]
+            )
+            if not np.allclose(observed_velocity, expected_velocity, rtol=1.0e-8, atol=1.0e-10):
+                raise RuntimeError(
+                    "Mixed angles of attack detected in one MFC archive: "
+                    f"step {step} has farfield velocity {observed_velocity.tolist()}, "
+                    f"expected {expected_velocity.tolist()} for alpha={alpha_deg:g} deg. "
+                    "Do not combine or interpret this archive."
+                )
+
         region = _region_mask(x, y, crop)
         fluid_region = fields["fluid"] & region
         if plot_mask is None:

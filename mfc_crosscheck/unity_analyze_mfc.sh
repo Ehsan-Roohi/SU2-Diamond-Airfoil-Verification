@@ -71,16 +71,19 @@ apptainer exec --writable-tmpfs \
         set -euo pipefail
         source /opt/MFC/build/venv/bin/activate
         export PYTHONPATH=/opt/MFC/toolchain
-        python /work/mfc_crosscheck/analyze_mfc.py "$MFC_CASE_DIR" \
-            --step "$MFC_ANALYSIS_STEP" \
-            --compare-step "$MFC_ANALYSIS_COMPARE_STEP" \
-            --alpha "$MFC_ANALYSIS_ALPHA" \
-            --output "$MFC_ANALYSIS_OUTPUT"
+        # Run the multi-snapshot consistency checks first.  This prevents a
+        # mixed-grid or mixed-alpha archive from producing plausible-looking
+        # two-snapshot figures before the contamination is detected.
         if [[ "$MFC_ANALYSIS_UNSTEADY" == 1 ]]; then
             python /work/mfc_crosscheck/analyze_mfc_unsteady.py "$MFC_CASE_DIR" \
                 --alpha "$MFC_ANALYSIS_ALPHA" \
                 --output "$MFC_ANALYSIS_OUTPUT"
         fi
+        python /work/mfc_crosscheck/analyze_mfc.py "$MFC_CASE_DIR" \
+            --step "$MFC_ANALYSIS_STEP" \
+            --compare-step "$MFC_ANALYSIS_COMPARE_STEP" \
+            --alpha "$MFC_ANALYSIS_ALPHA" \
+            --output "$MFC_ANALYSIS_OUTPUT"
     '
 
 echo "Analysis complete: $output_dir"
