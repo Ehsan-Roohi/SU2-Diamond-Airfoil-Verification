@@ -31,6 +31,8 @@ MACH_INF = 3.0
 RHO_INF = 1.0
 P_INF = 1.0 / GAMMA
 HALF_ANGLE_DEG = 8.0
+SHOCK_PRESSURE_DEVIATION_MIN = 5.0e-2
+SHOCK_DENSITY_DEVIATION_MIN = 2.0e-2
 AIRFOIL_X = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
 AIRFOIL_Y = np.array([0.0, -0.0702704174, 0.0, 0.0702704174, 0.0])
 
@@ -123,7 +125,7 @@ def _nearest_indices(coords: np.ndarray, targets: np.ndarray) -> np.ndarray:
     return np.where(choose_left, left, right)
 
 
-def _shock_ray(data: object, fields: dict[str, np.ndarray], alpha_deg: float) -> dict[str, np.ndarray | float]:
+def _shock_ray(data: object, fields: dict[str, np.ndarray], alpha_deg: float) -> dict[str, object]:
     alpha = math.radians(alpha_deg)
     distance = np.linspace(0.05, 1.50, 900)
     x_ray = -distance * math.cos(alpha)
@@ -132,26 +134,56 @@ def _shock_ray(data: object, fields: dict[str, np.ndarray], alpha_deg: float) ->
     iy = _nearest_indices(np.asarray(data.y_cc), y_ray)
 
     grad = fields["grad_rho"][ix, iy]
+    pressure_ratio = fields["pressure_ratio"][ix, iy]
+    rho = fields["rho"][ix, iy]
     fluid = fields["fluid"][ix, iy]
     valid = fluid & np.isfinite(grad)
+    max_pressure_deviation = (
+        float(np.max(np.abs(pressure_ratio[valid] - 1.0))) if np.any(valid) else float("nan")
+    )
+    max_density_deviation = (
+        float(np.max(np.abs(rho[valid] / RHO_INF - 1.0))) if np.any(valid) else float("nan")
+    )
+
     if np.any(valid):
         candidates = np.flatnonzero(valid)
         peak_index = int(candidates[np.argmax(grad[valid])])
-        stand_off = float(distance[peak_index])
     else:
         peak_index = -1
-        stand_off = float("nan")
+
+    signal_detected = (
+        np.isfinite(max_pressure_deviation)
+        and np.isfinite(max_density_deviation)
+        and max_pressure_deviation >= SHOCK_PRESSURE_DEVIATION_MIN
+        and max_density_deviation >= SHOCK_DENSITY_DEVIATION_MIN
+    )
+    peak_is_interior = 2 <= peak_index < len(distance) - 2
+    shock_detected = bool(signal_detected and peak_is_interior)
+    stand_off = float(distance[peak_index]) if shock_detected else None
+
+    if shock_detected:
+        detection_reason = "upstream ray contains a nontrivial jump with an interior gradient peak"
+    elif not np.any(valid):
+        detection_reason = "no valid fluid samples on upstream ray"
+    elif not signal_detected:
+        detection_reason = "upstream ray remains at freestream within detection thresholds"
+    else:
+        detection_reason = "largest gradient occurs at a ray endpoint; stand-off is unresolved"
 
     return {
         "distance": distance,
         "x": x_ray,
         "y": y_ray,
-        "rho": fields["rho"][ix, iy],
-        "pressure_ratio": fields["pressure_ratio"][ix, iy],
+        "rho": rho,
+        "pressure_ratio": pressure_ratio,
         "mach": fields["mach"][ix, iy],
         "grad_rho": grad,
         "fluid": fluid,
-        "peak_index": float(peak_index),
+        "peak_index": peak_index,
+        "shock_detected": shock_detected,
+        "detection_reason": detection_reason,
+        "max_pressure_deviation": max_pressure_deviation,
+        "max_density_deviation": max_density_deviation,
         "stand_off": stand_off,
     }
 
@@ -291,7 +323,7 @@ def _save_convergence_figure(
     plt.close(fig)
 
 
-def _save_ray_figure(ray: dict[str, np.ndarray | float], output: Path) -> None:
+def _save_ray_figure(ray: dict[str, object], output: Path) -> None:
     distance = np.asarray(ray["distance"])
     fig, axes = plt.subplots(3, 1, figsize=(7.2, 8.5), sharex=True, constrained_layout=True)
     axes[0].plot(distance, np.asarray(ray["pressure_ratio"]), color="#b2182b", lw=1.7)
@@ -301,18 +333,29 @@ def _save_ray_figure(ray: dict[str, np.ndarray | float], output: Path) -> None:
     axes[2].plot(distance, np.asarray(ray["grad_rho"]), color="black", lw=1.5)
     axes[2].set_ylabel(r"$|\nabla\rho|$")
     axes[2].set_xlabel(r"Upstream distance from leading edge, $s/c$")
-    stand_off = float(ray["stand_off"])
-    if np.isfinite(stand_off):
+    stand_off = ray["stand_off"]
+    if stand_off is not None:
+        stand_off = float(stand_off)
         for ax in axes:
             ax.axvline(stand_off, color="#d95f02", ls="--", lw=1.2)
         axes[0].set_title(f"Upstream freestream ray; gradient peak at s/c={stand_off:.4f}")
+    else:
+        axes[0].set_title("No resolved upstream shock on freestream ray")
+        axes[0].text(
+            0.02,
+            0.05,
+            str(ray["detection_reason"]),
+            transform=axes[0].transAxes,
+            fontsize=8,
+            va="bottom",
+        )
     for ax in axes:
         ax.grid(alpha=0.22)
     fig.savefig(output, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
-def _write_ray_csv(ray: dict[str, np.ndarray | float], output: Path) -> None:
+def _write_ray_csv(ray: dict[str, object], output: Path) -> None:
     columns = np.column_stack(
         [
             ray["distance"],
@@ -380,6 +423,18 @@ def _analyze(
     ray = _shock_ray(new_data, new, alpha_deg)
     theta_windward = alpha_deg + HALF_ANGLE_DEG
     theta_max = _theta_max_deg(MACH_INF, GAMMA)
+    detached_shock_expected = theta_windward > theta_max
+    detached_shock_detected = bool(ray["shock_detected"])
+    physical_consistency = (
+        "PASS"
+        if not detached_shock_expected or detached_shock_detected
+        else "FAIL_EXPECTED_DETACHED_SHOCK_NOT_DETECTED"
+    )
+    publication_readiness = (
+        "PASS_PRELIMINARY"
+        if stationarity == "PASS" and physical_consistency == "PASS"
+        else "FAIL"
+    )
 
     metrics: dict[str, object] = {
         "solver_regime": "Euler (inviscid, slip-wall immersed boundary)",
@@ -388,7 +443,13 @@ def _analyze(
         "diamond_half_angle_deg": HALF_ANGLE_DEG,
         "windward_turn_deg": theta_windward,
         "mach3_attached_shock_limit_deg": theta_max,
-        "detached_shock_expected": theta_windward > theta_max,
+        "detached_shock_expected": detached_shock_expected,
+        "detached_shock_detected": detached_shock_detected,
+        "shock_detection_reason": ray["detection_reason"],
+        "shock_ray_max_pressure_deviation": ray["max_pressure_deviation"],
+        "shock_ray_max_density_deviation": ray["max_density_deviation"],
+        "physical_consistency_assessment": physical_consistency,
+        "publication_readiness": publication_readiness,
         "normal_shock_pressure_ratio_reference": _normal_shock_pressure_ratio(MACH_INF, GAMMA),
         "old_step": old_step,
         "new_step": new_step,
@@ -406,7 +467,7 @@ def _analyze(
             "mach_min": float(np.min(new["mach"][fluid_region])),
             "mach_max": float(np.max(new["mach"][fluid_region])),
         },
-        "estimated_shock_standoff_over_c": float(ray["stand_off"]),
+        "estimated_shock_standoff_over_c": ray["stand_off"],
         "crop": list(crop),
     }
 
@@ -442,8 +503,13 @@ def _analyze(
         [
             f"Windward turn: {theta_windward:.4f} deg",
             f"Mach-3 attached-shock limit: {theta_max:.4f} deg",
-            f"Detached shock expected: {theta_windward > theta_max}",
-            f"Estimated shock stand-off s/c: {float(ray['stand_off']):.6f}",
+            f"Detached shock expected: {detached_shock_expected}",
+            f"Detached shock detected: {detached_shock_detected}",
+            f"Shock detection: {ray['detection_reason']}",
+            "Estimated shock stand-off s/c: "
+            + (f"{float(ray['stand_off']):.6f}" if ray["stand_off"] is not None else "NOT_DETECTED"),
+            f"Physical consistency: {physical_consistency}",
+            f"Publication readiness: {publication_readiness}",
             f"Reference normal-shock p2/p1: {_normal_shock_pressure_ratio(MACH_INF, GAMMA):.6f}",
             "",
             "Publication decision: do not use loads or stand-off until stationarity,",
