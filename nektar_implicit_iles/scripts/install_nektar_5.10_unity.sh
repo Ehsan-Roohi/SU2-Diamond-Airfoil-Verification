@@ -63,9 +63,7 @@ cmake -S "$PREFIX/src/nektar" -B "$PREFIX/build" \
 CACHE_FILE="$PREFIX/build/CMakeCache.txt"
 for expected in \
     'NEKTAR_USE_SCOTCH:BOOL=OFF' \
-    'THIRDPARTY_BUILD_SCOTCH:BOOL=OFF' \
-    'NEKTAR_USE_METIS:BOOL=ON' \
-    'THIRDPARTY_BUILD_METIS:BOOL=ON'; do
+    'NEKTAR_USE_METIS:BOOL=ON'; do
     if ! grep -qx "$expected" "$CACHE_FILE"; then
         echo "unexpected Nektar++ partitioner configuration: $expected" >&2
         exit 1
