@@ -92,3 +92,33 @@ With a native MFC checkout:
 The Silo output includes pressure, density, velocity components, and a
 Schlieren field. Compare integrated loads only after convergence and
 far-boundary sensitivity have been established.
+
+## Publication-oriented analysis
+
+The native MFC figures show the full computational box and do not mask the
+immersed-boundary cells. For a close-up with the diamond geometry overlaid,
+derived Mach and temperature fields, density-gradient magnitude, and a
+saved-field stationarity check, run:
+
+```bash
+bash mfc_crosscheck/unity_analyze_mfc.sh \
+  mfc_runs/alpha30_euler_medium/mfc_crosscheck-YYYYMMDD-HHMMSS
+```
+
+The analysis uses MFC's own Silo-HDF5 reader and writes the following under
+the archive's `analysis/` directory:
+
+- `mfc_fields_closeup.png`: pressure, density, Mach, temperature,
+  density-gradient, and native Schlieren close-ups;
+- `mfc_saved_field_change.png`: common-scale fields and differences between
+  steps 1500 and 1800;
+- `mfc_shock_ray.png` and `mfc_shock_ray.csv`: an upstream-ray diagnostic and
+  estimated leading-edge shock stand-off;
+- `mfc_metrics.json` and `mfc_validation_summary.txt`: numerical checks,
+  including near-body relative L2 changes and freestream preservation.
+
+The script labels this calculation explicitly as Euler (inviscid, slip wall).
+Visible wake-like spots or Cartesian-grid ripples are therefore numerical or
+transient structures, not evidence of modeled turbulence. Do not use MFC
+loads or stand-off values in a publication until the stationarity, grid, and
+far-boundary checks all pass.
