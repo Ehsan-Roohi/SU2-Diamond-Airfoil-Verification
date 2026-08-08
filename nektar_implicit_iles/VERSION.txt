@@ -1,0 +1,5 @@
+Nektar++ Diamond-Airfoil Implicit-ILES bundle
+Bundle version: 1.0.0
+Target Nektar++: v5.10.0
+Case: M_inf=3, Re_c=1e6, rounded symmetric diamond, half-angle=8 deg
+

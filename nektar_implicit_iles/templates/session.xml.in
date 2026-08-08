@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<NEKTAR>
+    <EXPANSIONS>
+        <E COMPOSITE="C[100]" NUMMODES="@ORDER@" FIELDS="rho,rhou,rhov,rhow,E" TYPE="MODIFIED" />
+    </EXPANSIONS>
+
+    <CONDITIONS>
+        <SOLVERINFO>
+            <I PROPERTY="EQType"               VALUE="NavierStokesImplicitCFE" />
+            <I PROPERTY="Projection"           VALUE="DisContinuous" />
+            <I PROPERTY="AdvectionType"        VALUE="WeakDG" />
+            <I PROPERTY="DiffusionType"        VALUE="InteriorPenalty" />
+            <I PROPERTY="AdvectionAdvancement" VALUE="Implicit" />
+            <I PROPERTY="DiffusionAdvancement" VALUE="Implicit" />
+            <I PROPERTY="UpwindType"           VALUE="Roe" />
+            <I PROPERTY="ProblemType"          VALUE="General" />
+            <I PROPERTY="ViscosityType"        VALUE="Constant" />
+            <I PROPERTY="ShockCaptureType"     VALUE="Physical" />
+            <I PROPERTY="ShockSensorType"      VALUE="Dilatation" />
+            <I PROPERTY="DucrosSensor"         VALUE="On" />
+            <I PROPERTY="OutputExtraFields"    VALUE="True" />
+        </SOLVERINFO>
+
+        <TIMEINTEGRATIONSCHEME>
+            <METHOD> DIRK </METHOD>
+            <ORDER> 2 </ORDER>
+        </TIMEINTEGRATIONSCHEME>
+
+        <PARAMETERS>
+            <P> Time                       = @TIME@ </P>
+            <P> TimeStep                   = @DT@ </P>
+            <P> NumSteps                   = @NSTEPS@ </P>
+            <P> IO_InfoSteps               = @INFO_FREQ@ </P>
+            <P> IO_CFLSteps                = @INFO_FREQ@ </P>
+
+            <P> Gamma                      = 1.4 </P>
+            <P> Mach                       = 3.0 </P>
+            <P> Reynolds                   = 1.0e6 </P>
+            <P> alpha                      = @ALPHA@ </P>
+            <P> rhoInf                     = 1.0 </P>
+            <P> TInf                       = 1.0 </P>
+            <P> GasConstant                = 1.0/(Gamma*Mach*Mach) </P>
+            <P> cInf                       = sqrt(Gamma*GasConstant*TInf) </P>
+            <P> UInf                       = Mach*cInf </P>
+            <P> uInf                       = UInf*cos(alpha*PI/180.0) </P>
+            <P> vInf                       = UInf*sin(alpha*PI/180.0) </P>
+            <P> wInf                       = 0.0 </P>
+            <P> pInf                       = rhoInf*GasConstant*TInf </P>
+            <P> EInf                       = pInf/(Gamma-1.0) + 0.5*rhoInf*UInf*UInf </P>
+            <P> mu                         = rhoInf*UInf/Reynolds </P>
+            <P> Pr                         = 0.72 </P>
+            <P> Cp                         = Gamma*GasConstant/(Gamma-1.0) </P>
+            <P> thermalConductivity        = Cp*mu/Pr </P>
+            <P> Twall                      = TInf </P>
+            <P> Lz                         = @LZ@ </P>
+            <P> perturbAmp                 = @PERT_AMP@ </P>
+            <P> wSeed = perturbAmp*UInf*exp(-((x-0.15)/0.10)^2-(y/0.12)^2)*(sin(2*PI*z/Lz)+0.5*sin(6*PI*z/Lz)) </P>
+
+            <P> mu0                        = @AV_MU0@ </P>
+            <P> IPSymmFluxCoeff            = 0.0 </P>
+            <P> PreconMatFreezNumb         = 500 </P>
+            <P> NonlinIterTolRelativeL2    = 1.0e-3 </P>
+            <P> LinSysRelativeTolInNonlin  = 5.0e-2 </P>
+            <P> NekLinSysMaxIterations     = 50 </P>
+            <P> PreconItsStep              = 7 </P>
+            <P> IO_Timer_Level             = 2 </P>
+        </PARAMETERS>
+
+        <VARIABLES>
+            <V ID="0"> rho  </V>
+            <V ID="1"> rhou </V>
+            <V ID="2"> rhov </V>
+            <V ID="3"> rhow </V>
+            <V ID="4"> E    </V>
+        </VARIABLES>
+
+        <BOUNDARYREGIONS>
+            <B ID="0"> C[1] </B>   <!-- rounded airfoil -->
+            <B ID="1"> C[2] </B>   <!-- circular farfield -->
+            <B ID="2"> C[102] </B> <!-- z=0 -->
+            <B ID="3"> C[103] </B> <!-- z=Lz -->
+        </BOUNDARYREGIONS>
+
+        <BOUNDARYCONDITIONS>
+            <REGION REF="0">
+                <D VAR="rho"  USERDEFINEDTYPE="WallAdiabatic" VALUE="0" />
+                <D VAR="rhou" USERDEFINEDTYPE="WallAdiabatic" VALUE="0" />
+                <D VAR="rhov" USERDEFINEDTYPE="WallAdiabatic" VALUE="0" />
+                <D VAR="rhow" USERDEFINEDTYPE="WallAdiabatic" VALUE="0" />
+                <D VAR="E"    USERDEFINEDTYPE="WallAdiabatic" VALUE="0" />
+            </REGION>
+            <REGION REF="1">
+                <D VAR="rho"  USERDEFINEDTYPE="RiemannInvariant" VALUE="0" />
+                <D VAR="rhou" USERDEFINEDTYPE="RiemannInvariant" VALUE="0" />
+                <D VAR="rhov" USERDEFINEDTYPE="RiemannInvariant" VALUE="0" />
+                <D VAR="rhow" USERDEFINEDTYPE="RiemannInvariant" VALUE="0" />
+                <D VAR="E"    USERDEFINEDTYPE="RiemannInvariant" VALUE="0" />
+            </REGION>
+            <REGION REF="2">
+                <P VAR="rho"  VALUE="[3]" />
+                <P VAR="rhou" VALUE="[3]" />
+                <P VAR="rhov" VALUE="[3]" />
+                <P VAR="rhow" VALUE="[3]" />
+                <P VAR="E"    VALUE="[3]" />
+            </REGION>
+            <REGION REF="3">
+                <P VAR="rho"  VALUE="[2]" />
+                <P VAR="rhou" VALUE="[2]" />
+                <P VAR="rhov" VALUE="[2]" />
+                <P VAR="rhow" VALUE="[2]" />
+                <P VAR="E"    VALUE="[2]" />
+            </REGION>
+        </BOUNDARYCONDITIONS>
+
+        <FUNCTION NAME="InitialConditions">
+@INITIAL_CONDITIONS@
+        </FUNCTION>
+    </CONDITIONS>
+
+    <FILTERS>
+        <FILTER TYPE="AeroForces">
+            <PARAM NAME="OutputFile">@FORCE_FILE@</PARAM>
+            <PARAM NAME="OutputFrequency">@FORCE_FREQ@</PARAM>
+            <PARAM NAME="StartTime">@FORCE_START@</PARAM>
+            <PARAM NAME="Boundary">B[0]</PARAM>
+            <PARAM NAME="PivotPoint">0.5 0 0</PARAM>
+        </FILTER>
+        <FILTER TYPE="Checkpoint">
+            <PARAM NAME="OutputFile">@CHECK_FILE@</PARAM>
+            <PARAM NAME="OutputFrequency">@CHECK_FREQ@</PARAM>
+        </FILTER>
+    </FILTERS>
+</NEKTAR>
+
