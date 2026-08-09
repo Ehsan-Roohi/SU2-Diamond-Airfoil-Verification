@@ -2,6 +2,7 @@
 <NEKTAR>
     <EXPANSIONS>
         <E COMPOSITE="C[100]" NUMMODES="2" FIELDS="rho,rhou,rhov,rhow,E" TYPE="MODIFIED" />
+        <E COMPOSITE="C[101]" NUMMODES="2" FIELDS="rho,rhou,rhov,rhow,E" TYPE="MODIFIED" />
     </EXPANSIONS>
 
     <CONDITIONS>
@@ -77,8 +78,8 @@
         <BOUNDARYREGIONS>
             <B ID="0"> C[1] </B>   <!-- rounded airfoil -->
             <B ID="1"> C[2] </B>   <!-- circular farfield -->
-            <B ID="2"> C[102] </B> <!-- z=0 -->
-            <B ID="3"> C[103] </B> <!-- z=Lz -->
+            <B ID="2"> C[103] </B> <!-- z=0 -->
+            <B ID="3"> C[104] </B> <!-- z=Lz -->
         </BOUNDARYREGIONS>
 
         <BOUNDARYCONDITIONS>
@@ -135,4 +136,3 @@
         </FILTER>
     </FILTERS>
 </NEKTAR>
-
