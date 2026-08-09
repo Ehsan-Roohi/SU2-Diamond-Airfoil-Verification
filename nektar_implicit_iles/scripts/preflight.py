@@ -61,10 +61,22 @@ def program_checks() -> list[str]:
                 [program, '--version'], text=True, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, timeout=15, check=False
             )
-            first = result.stdout.strip().splitlines()[0] if result.stdout.strip() else 'version not printed'
-            messages.append(f'version {program}: {first}')
-        except (OSError, subprocess.TimeoutExpired):
-            messages.append(f'version {program}: unavailable, executable check passed')
+        except subprocess.TimeoutExpired as exc:
+            raise SystemExit(
+                f'PRECHECK FAIL: {program} --version timed out after 15 seconds'
+            ) from exc
+        except OSError as exc:
+            raise SystemExit(
+                f'PRECHECK FAIL: could not launch {program}: {exc}'
+            ) from exc
+        output = result.stdout.strip()
+        first = output.splitlines()[0] if output else 'version not printed'
+        if result.returncode != 0:
+            raise SystemExit(
+                f'PRECHECK FAIL: {program} --version exited '
+                f'{result.returncode}: {first}'
+            )
+        messages.append(f'version {program}: {first}')
     return messages
 
 
