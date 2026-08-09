@@ -59,15 +59,17 @@ if [[ ! -f "$CASE_ROOT/scripts/submit.sh" ]]; then
     exit 1
 fi
 
-# Unity's module command is normally initialized by the login shell.
+# Nektar++ was built against Unity OpenMPI (libmpi.so.40).  A Conda
+# mpicxx in PATH is not sufficient, so load the matching module explicitly.
 if type module >/dev/null 2>&1; then
-    if ! command -v mpicxx >/dev/null 2>&1; then
-        module load openmpi/5.0.3 2>/dev/null || \
-            module load openmpi/4.1.6
-    fi
+    module load openmpi/5.0.3 2>/dev/null || \
+        module load openmpi/4.1.6
     if ! command -v cmake >/dev/null 2>&1; then
         module load cmake
     fi
+else
+    echo "Unity module command is unavailable; cannot activate OpenMPI" >&2
+    exit 1
 fi
 
 ENV_FILE="$INSTALL_PREFIX/nektar_env.sh"
@@ -105,6 +107,17 @@ for required in gmsh NekMesh CompressibleFlowSolver sbatch python3; do
         echo "required command is unavailable after setup: $required" >&2
         exit 1
     fi
+done
+
+# Catch dynamic-linker failures before consuming a Slurm allocation.
+for required in NekMesh CompressibleFlowSolver; do
+    if ! version_output=$("$required" --version 2>&1); then
+        echo "required program cannot start: $required" >&2
+        printf '%s\n' "$version_output" >&2
+        ldd "$(command -v "$required")" 2>/dev/null | grep 'not found' >&2 || true
+        exit 1
+    fi
+    printf 'validated %s: %s\n' "$required" "${version_output%%$'\n'*}"
 done
 
 export NEKTAR_ENV_FILE="$ENV_FILE"
