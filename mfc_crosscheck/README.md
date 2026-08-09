@@ -133,6 +133,20 @@ case tests the high-incidence curved compression front and unsteady wake with
 the corrected characteristic boundaries. Analyze both controls before
 submitting the `alpha=30 deg` medium case.
 
+For the follow-on vortex-mechanism checks, submit:
+
+```bash
+bash mfc_crosscheck/unity_submit_mfc_vortex_checks.sh
+```
+
+This adds `alpha=30 deg` on the medium grid (twice the linear resolution of
+coarse) and a matched coarse-grid `alpha=0 deg` symmetric-incidence control.
+At exactly zero incidence, both transverse boundaries use the non-reflecting
+subsonic-buffer CBC (`-6`) because their mean normal velocity is zero. Compare
+the alpha-30 coarse/medium temporal spectra and RMS fields to quantify grid
+selection of the rolled-up wake wavelength; compare alpha 0/30 on the coarse
+grid to isolate incidence-driven asymmetry.
+
 ## Publication-oriented analysis
 
 The native MFC figures show the full computational box and do not mask the

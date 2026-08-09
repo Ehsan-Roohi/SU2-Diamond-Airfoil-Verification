@@ -87,13 +87,17 @@ def boundary_pair(normal_velocity: float) -> tuple[int, int]:
     """Return beginning/end CBCs for one Cartesian direction.
 
     Supersonic inflow/outflow is selected when the normal Mach number exceeds
-    one.  At smaller normal Mach number, use prescribed subsonic inflow and
-    pressure-controlled subsonic outflow.  This matters for an oblique
+    one.  At smaller nonzero normal Mach number, use prescribed subsonic inflow
+    and pressure-controlled subsonic outflow.  At zero normal velocity, both
+    transverse boundaries use MFC's non-reflecting subsonic buffer because
+    neither side is a mean-flow inlet or outlet.  This matters for an oblique
     freestream: at alpha=20 or 30 degrees both the left and lower boundaries
-    are supersonic inflows, whereas at small incidence the transverse normal
-    Mach number is subsonic.
+    are supersonic inflows, whereas at zero incidence the two y boundaries are
+    symmetric non-reflecting buffers.
     """
 
+    if abs(normal_velocity) <= 1.0e-12 * a_inf:
+        return -6, -6
     if normal_velocity >= a_inf:
         return -11, -12
     if normal_velocity <= -a_inf:
