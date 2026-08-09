@@ -11,6 +11,24 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+def composite_refs(text: str) -> set[int]:
+    """Expand Nektar composite references such as C[1,3-5]."""
+    result: set[int] = set()
+    for expression in re.findall(r'C\[([^\]]+)\]', text):
+        for item in expression.split(','):
+            item = item.strip()
+            if re.fullmatch(r'\d+', item):
+                result.add(int(item))
+                continue
+            match = re.fullmatch(r'(\d+)\s*-\s*(\d+)', item)
+            if match:
+                start, stop = map(int, match.groups())
+                if stop < start:
+                    raise ValueError(f'descending composite range: {item}')
+                result.update(range(start, stop + 1))
+    return result
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument('--geo')
@@ -65,15 +83,21 @@ def mesh_checks(path: Path) -> list[str]:
     if geometry.attrib.get('DIM') != '3' or geometry.attrib.get('SPACE') != '3':
         raise SystemExit(f'PRECHECK FAIL: expected DIM=3 SPACE=3, got {geometry.attrib}')
     comp_ids = {int(c.attrib['ID']) for c in root.findall('.//COMPOSITE/C') if 'ID' in c.attrib}
-    required = {1, 2, 100, 102, 103}
+    required = {1, 2, 100, 101, 103, 104}
     missing = required - comp_ids
     if missing:
         raise SystemExit(
             f'PRECHECK FAIL: missing composites {sorted(missing)}; found sample {sorted(comp_ids)[:20]}'
         )
     domain_text = ' '.join((d.text or '') for d in root.findall('.//DOMAIN/D'))
-    if not re.search(r'C\[100\]', domain_text):
-        raise SystemExit(f'PRECHECK FAIL: C[100] is not the volume domain: {domain_text!r}')
+    domain_composites = composite_refs(domain_text)
+    volume_composites = {100, 101}
+    if not volume_composites.issubset(domain_composites):
+        raise SystemExit(
+            'PRECHECK FAIL: mixed prism/hex volume composites are not both in the domain: '
+            f'expected {sorted(volume_composites)}, got {sorted(domain_composites)} '
+            f'from {domain_text!r}'
+        )
     return [f'mesh XML: PASS ({path})', f'composites: {sorted(required)} present']
 
 
@@ -88,7 +112,7 @@ def session_checks(path: Path) -> list[str]:
     required = (
         'NavierStokesImplicitCFE', 'InteriorPenalty', 'Dilatation',
         'DucrosSensor', 'WallAdiabatic', 'RiemannInvariant',
-        'VAR="rhow"', 'C[102]', 'C[103]', 'TYPE="AeroForces"',
+        'VAR="rhow"', 'C[100]', 'C[101]', 'C[103]', 'C[104]', 'TYPE="AeroForces"',
         'TYPE="Checkpoint"',
     )
     missing = [token for token in required if token not in text]
@@ -97,6 +121,24 @@ def session_checks(path: Path) -> list[str]:
     variables = [v.text.strip() for v in root.findall('.//VARIABLES/V')]
     if variables != ['rho', 'rhou', 'rhov', 'rhow', 'E']:
         raise SystemExit(f'PRECHECK FAIL: wrong variable ordering: {variables}')
+    expansion_composites = set()
+    for expansion in root.findall('.//EXPANSIONS/E'):
+        expansion_composites.update(composite_refs(expansion.attrib.get('COMPOSITE', '')))
+    if not {100, 101}.issubset(expansion_composites):
+        raise SystemExit(
+            'PRECHECK FAIL: expansions must cover both prism and hex volumes; '
+            f'got {sorted(expansion_composites)}'
+        )
+    boundary_regions = {
+        int(boundary.attrib['ID']): composite_refs(boundary.text or '')
+        for boundary in root.findall('.//BOUNDARYREGIONS/B')
+    }
+    expected_boundaries = {0: {1}, 1: {2}, 2: {103}, 3: {104}}
+    if boundary_regions != expected_boundaries:
+        raise SystemExit(
+            'PRECHECK FAIL: wrong boundary composite mapping: '
+            f'expected {expected_boundaries}, got {boundary_regions}'
+        )
     return [f'session XML: PASS ({path})', 'implicit 3-D CFS configuration: PASS']
 
 
@@ -119,4 +161,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
