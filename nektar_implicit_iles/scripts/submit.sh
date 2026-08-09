@@ -27,6 +27,7 @@ set +a
 
 mkdir -p "$BUNDLE_ROOT/runs"
 cd "$BUNDLE_ROOT"
+NEKTAR_CASE_ROOT=$BUNDLE_ROOT
 
 case "$JOB_EXCLUSIVE" in
     0) ;;
@@ -43,7 +44,7 @@ SBATCH_ARGS=(
     --ntasks-per-node="$JOB_TASKS_PER_NODE"
     --mem="$JOB_MEMORY"
     --time="$JOB_TIME"
-    --export="ALL,PROFILE_NAME=${PROFILE_NAME},ALPHA_DEG=${ALPHA_DEG}"
+    --export="ALL,PROFILE_NAME=${PROFILE_NAME},ALPHA_DEG=${ALPHA_DEG},NEKTAR_CASE_ROOT=${NEKTAR_CASE_ROOT}"
 )
 if [[ "$JOB_EXCLUSIVE" == "1" ]]; then
     SBATCH_ARGS+=(--exclusive)
