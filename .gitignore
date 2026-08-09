@@ -36,3 +36,6 @@ mfc_runs/
 Thumbs.db
 *.tmp
 *.bak
+
+# SU2 unsteady research outputs
+su2_runs/
