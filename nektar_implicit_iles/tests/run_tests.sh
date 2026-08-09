@@ -27,4 +27,13 @@ if grep -q '^#SBATCH --exclusive' "$ROOT/slurm/run.slurm"; then
     echo "run.slurm must not force exclusive nodes for every profile" >&2
     exit 1
 fi
+if grep -q 'dirname.*BASH_SOURCE' "$ROOT/slurm/run.slurm"; then
+    echo "run.slurm must not derive the case root from Slurm's spooled script path" >&2
+    exit 1
+fi
+if ! grep -q 'NEKTAR_CASE_ROOT' "$ROOT/scripts/submit.sh" || \
+   ! grep -q 'NEKTAR_CASE_ROOT' "$ROOT/slurm/run.slurm"; then
+    echo "the submission must pass an explicit case root to the spooled job" >&2
+    exit 1
+fi
 echo "bundle tests: PASS"
