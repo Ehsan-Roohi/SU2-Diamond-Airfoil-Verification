@@ -3,8 +3,8 @@
 ## Gate 0: executable and mesh
 
 - Required programs found and report Nektar++ v5.10.x.
-- Mesh dimension is 3 and composites `C[1]`, `C[2]`, `C[100]`, `C[102]`, and `C[103]` exist.
-- `C[1]`: airfoil wall; `C[2]`: farfield; `C[100]`: volume; `C[102:103]`: periodic span planes.
+- Mesh dimension is 3 and composites `C[1]`, `C[2]`, `C[100]`, `C[101]`, `C[103]`, and `C[104]` exist.
+- `C[1]`: airfoil wall; `C[2]`: farfield; `C[100:101]`: prism/hex volumes; `C[103:104]`: periodic span planes.
 - Nektar++ mesh check reports no invalid Jacobians.
 
 ## Gate 1: smoke
