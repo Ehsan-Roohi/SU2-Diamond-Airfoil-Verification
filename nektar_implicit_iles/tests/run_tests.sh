@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 python3 "$ROOT/tests/test_geometry.py"
 python3 "$ROOT/tests/test_postprocessor.py"
+python3 "$ROOT/tests/test_preflight.py"
 python3 -m py_compile \
     "$ROOT/geometry/generate_geo.py" \
     "$ROOT/scripts/render_session.py" \
