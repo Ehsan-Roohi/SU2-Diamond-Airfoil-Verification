@@ -5,8 +5,11 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-BUNDLE_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+BUNDLE_ROOT=${NEKTAR_CASE_ROOT:?NEKTAR_CASE_ROOT is required; submit with scripts/submit.sh}
+if [[ "$BUNDLE_ROOT" != /* || ! -f "$BUNDLE_ROOT/scripts/run_pipeline.sh" ]]; then
+    echo "invalid NEKTAR_CASE_ROOT: $BUNDLE_ROOT" >&2
+    exit 2
+fi
 RUN_DIR="$BUNDLE_ROOT/runs/${PROFILE_NAME}_a${ALPHA_DEG}_${SLURM_JOB_ID}"
 
 mkdir -p "$RUN_DIR"
