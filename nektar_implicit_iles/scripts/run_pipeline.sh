@@ -53,8 +53,11 @@ gmsh -2 diamond.geo -format msh2 -order 2 -o diamond2d.msh 2>&1 | tee gmsh.log
 NekMesh diamond2d.msh mesh2d.xml 2>&1 | tee nekmesh_2d.log
 NekMesh \
     -m "extrude:layers=${NZ}:length=${LZ}" \
-    -m "peralign:surf1=103:surf2=104:dir=z" \
-    mesh2d.xml mesh3d.xml 2>&1 | tee nekmesh_extrude.log
+    mesh2d.xml mesh3d.xml:xml:uncompress 2>&1 | tee nekmesh_extrude.log
+python3 "$BUNDLE_ROOT/scripts/preflight.py" \
+    --align-periodic mesh3d.xml \
+    --periodic-surf1 103 --periodic-surf2 104 --periodic-dir z \
+    | tee periodic_alignment.log
 
 INFO_START=$(( NSTEPS_START / 20 ))
 INFO_MAIN=$(( NSTEPS_MAIN / 50 ))
