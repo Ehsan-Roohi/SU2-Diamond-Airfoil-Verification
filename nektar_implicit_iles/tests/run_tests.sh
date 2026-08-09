@@ -14,4 +14,17 @@ bash -n \
     "$ROOT/scripts/submit.sh" \
     "$ROOT/scripts/install_nektar_5.10_unity.sh" \
     "$ROOT/slurm/run.slurm"
+
+(
+    set -u
+    source "$ROOT/profiles/smoke.env"
+    [[ "$JOB_NODES" == "1" ]]
+    [[ "$JOB_TASKS_PER_NODE" == "8" ]]
+    [[ "$JOB_MEMORY" == "16G" ]]
+    [[ "$JOB_EXCLUSIVE" == "0" ]]
+)
+if grep -q '^#SBATCH --exclusive' "$ROOT/slurm/run.slurm"; then
+    echo "run.slurm must not force exclusive nodes for every profile" >&2
+    exit 1
+fi
 echo "bundle tests: PASS"
