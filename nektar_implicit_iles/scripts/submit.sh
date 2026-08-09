@@ -27,11 +27,26 @@ set +a
 
 mkdir -p "$BUNDLE_ROOT/runs"
 cd "$BUNDLE_ROOT"
-sbatch \
-    --job-name="nek_${PROFILE_NAME}_a${ALPHA_DEG}" \
-    --nodes="$SLURM_NODES" \
-    --ntasks-per-node="$SLURM_TASKS_PER_NODE" \
-    --time="$SLURM_TIME" \
-    --export="ALL,PROFILE_NAME=${PROFILE_NAME},ALPHA_DEG=${ALPHA_DEG}" \
-    slurm/run.slurm
 
+case "$JOB_EXCLUSIVE" in
+    0) ;;
+    1) ;;
+    *)
+        echo "JOB_EXCLUSIVE must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
+SBATCH_ARGS=(
+    --job-name="nek_${PROFILE_NAME}_a${ALPHA_DEG}"
+    --nodes="$JOB_NODES"
+    --ntasks-per-node="$JOB_TASKS_PER_NODE"
+    --mem="$JOB_MEMORY"
+    --time="$JOB_TIME"
+    --export="ALL,PROFILE_NAME=${PROFILE_NAME},ALPHA_DEG=${ALPHA_DEG}"
+)
+if [[ "$JOB_EXCLUSIVE" == "1" ]]; then
+    SBATCH_ARGS+=(--exclusive)
+fi
+
+sbatch "${SBATCH_ARGS[@]}" slurm/run.slurm
