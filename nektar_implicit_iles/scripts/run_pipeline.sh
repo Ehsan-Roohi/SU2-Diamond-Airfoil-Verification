@@ -51,7 +51,10 @@ python3 "$BUNDLE_ROOT/geometry/generate_geo.py" \
 python3 "$BUNDLE_ROOT/scripts/preflight.py" --geo diamond.geo | tee -a preflight_geometry.log
 gmsh -2 diamond.geo -format msh2 -order 2 -o diamond2d.msh 2>&1 | tee gmsh.log
 NekMesh diamond2d.msh mesh2d.xml 2>&1 | tee nekmesh_2d.log
-NekMesh -m "extrude:layers=${NZ}:length=${LZ}" mesh2d.xml mesh3d.xml 2>&1 | tee nekmesh_extrude.log
+NekMesh \
+    -m "extrude:layers=${NZ}:length=${LZ}" \
+    -m "peralign:surf1=103:surf2=104:dir=z" \
+    mesh2d.xml mesh3d.xml 2>&1 | tee nekmesh_extrude.log
 
 INFO_START=$(( NSTEPS_START / 20 ))
 INFO_MAIN=$(( NSTEPS_MAIN / 50 ))
@@ -106,4 +109,3 @@ python3 "$BUNDLE_ROOT/post/analyze_forces.py" forces_main.fce \
     --alpha "$ALPHA_DEG" --span "$LZ" --window "$AVG_WINDOW" --output-dir "$RUN_DIR"
 
 echo "run completed: $RUN_DIR"
-
