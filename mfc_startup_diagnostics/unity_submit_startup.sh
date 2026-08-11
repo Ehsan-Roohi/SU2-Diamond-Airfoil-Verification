@@ -60,6 +60,13 @@ set -euo pipefail
 module purge
 module load openmpi/5.0.3
 export OMP_NUM_THREADS=1
+MPI_LAUNCHER="$(command -v mpirun)"
+if [[ -z "$MPI_LAUNCHER" || ! -x "$MPI_LAUNCHER" ]]; then
+    echo "ERROR: mpirun was not found after loading openmpi/5.0.3" >&2
+    exit 5
+fi
+echo "MPI_LAUNCHER=$MPI_LAUNCHER"
+"$MPI_LAUNCHER" --version | head -2
 
 cd "$MFC_ROOT"
 mkdir -p build
@@ -70,7 +77,7 @@ fi
 
 set +e
 ./mfc.sh run "$CASE_DIR/case.py" \
-    -n "$SLURM_NTASKS" -j 1 --mpi --no-gpu \
+    -n "$SLURM_NTASKS" -j 1 --mpi --no-gpu --binary mpirun \
     2>&1 | tee "$CASE_DIR/mfc-startup.log"
 mfc_status=${PIPESTATUS[0]}
 set -e
