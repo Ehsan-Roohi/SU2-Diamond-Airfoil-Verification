@@ -25,6 +25,9 @@ The default request is one CPU node, 32 MPI tasks, 120 GiB, and three hours.
 The successful f270 timing implies about 75--90 minutes for the simulation,
 plus post-processing and compact packaging.
 
+The Unity wrapper explicitly selects `mpirun`. Allowing MFC to auto-select
+`srun` with OpenMPI 5 caused `MPI_Init` to fail before `syscheck` on Unity.
+
 The submitter can be adjusted without editing it. For example, 81 states at
 `Delta(t_save)=0.01` (larger raw output) use:
 
