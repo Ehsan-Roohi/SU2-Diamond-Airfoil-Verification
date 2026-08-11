@@ -33,7 +33,8 @@ RUN_BASE="$ROOT/mfc_runs/fixed_ib_a40_startup_${STAMP}"
 CASE_DIR="$RUN_BASE/very_fine_startup_t0p8_dt0p02"
 mkdir -p "$CASE_DIR"
 
-RAW_BASE="https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-startup-diagnostics/mfc_startup_diagnostics"
+# Pin companion inputs to a reviewed commit so the submitted case is reproducible.
+RAW_BASE="https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/782fa58398e34235b6df5bb375ab02c2e6baa28b/mfc_startup_diagnostics"
 curl -fL --retry 3 "$RAW_BASE/case_startup.py" -o "$CASE_DIR/case.py"
 curl -fL --retry 3 "$RAW_BASE/pack_startup_fields.py" -o "$CASE_DIR/pack_startup_fields.py"
 curl -fL --retry 3 "$RAW_BASE/Diamond_Airfoil_2D_MFC.stl" -o "$CASE_DIR/Diamond_Airfoil_2D_MFC.stl"
