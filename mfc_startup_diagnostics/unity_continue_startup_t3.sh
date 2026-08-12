@@ -85,7 +85,7 @@ if [[ ! -f "$CASE_DIR/pack_startup_fields.py" || \
 fi
 
 # This immutable ref is filled by the publishing commit.
-RAW_BASE="https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/7e857fb886169a126e2cadecb4f31349f4785858/mfc_startup_diagnostics"
+RAW_BASE="https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/f18f22801d1a552073f41a8a88dbd020f959f9b7/mfc_startup_diagnostics"
 curl -fL --retry 3 "$RAW_BASE/case_continue_t3.py" -o "$CASE_DIR/case_continue_t3.py"
 python3 "$CASE_DIR/case_continue_t3.py" \
     --start-step "$START_STEP" --stop-step "$STOP_STEP" \
@@ -96,10 +96,18 @@ if [[ "$(grep -c 'facet normal' "$CASE_DIR/Diamond_Airfoil_2D_MFC.stl")" -ne 2 ]
     exit 2
 fi
 
+# Fail immediately on the login node if the pinned case is rejected by this
+# installed MFC version, instead of spending time waiting for a Slurm node.
+(
+    cd "$MFC_ROOT"
+    ./mfc.sh validate "$CASE_DIR/case_continue_t3.py" \
+        2>&1 | tee "$CASE_DIR/validate-continue-t3.log"
+)
+
 echo "SOURCE_RUN_BASE=$SOURCE_RUN_BASE"
 echo "CASE_DIR=$CASE_DIR"
 echo "RESTART_FILE=$RESTART_FILE"
-echo "CONTINUATION=t=$((START_STEP / 5400)) to t=$(awk -v s="$STOP_STEP" 'BEGIN{printf "%.3f",s/5400}')"
+echo "CONTINUATION=t=$(awk -v s="$START_STEP" 'BEGIN{printf "%.3f",s/5400}') to t=$(awk -v s="$STOP_STEP" 'BEGIN{printf "%.3f",s/5400}')"
 echo "NEW_FRAMES=$(((STOP_STEP - START_STEP) / SAVE_EVERY))"
 df -h "$CASE_DIR" || true
 
