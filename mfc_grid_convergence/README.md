@@ -16,7 +16,34 @@ step is `dt=1/8100`, giving 109350 time steps and 25 save intervals.
 The submitter also requires the same MFC commit used by the validated runs,
 `0c9a1d434410175ac483b8d71646455444e3b7eb`.
 
-## Unity one-line submission
+## Recommended Unity submission: three restartable jobs
+
+The recommended production path splits f405 into three checkpoint-aligned
+jobs.  Each requests 48 MPI ranks, 120 GiB, and 24 hours; the default QOS is
+used because every segment is shorter than Unity's normal limit.  The measured
+f270 peak was only 20.63 GiB, so scaling by the 2.25 grid-size ratio predicts
+about 46.4 GiB for f405 and leaves a large memory margin.
+
+The segment boundaries are:
+
+| Segment | Step range | Physical-time range | Dependency |
+|---|---:|---:|---|
+| 1 | 0--34992 | 0--4.32 | optional prior `mfc-a40-*` job |
+| 2 | 34992--69984 | 4.32--8.64 | `afterok` segment 1 |
+| 3 | 69984--109350 | 8.64--13.5 | `afterok` segment 2 |
+
+Run this on a Unity login node:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_submit_f405_chain.sh)
+```
+
+The first segment can use `afterany` for an older MFC job, but all scientific
+segments use `afterok`: a missing/failed checkpoint prevents the next segment
+from starting.  All three jobs write to the same new timestamped case
+directory and the final stage alone writes `RUN_OK_F405.txt`.
+
+## Legacy single-job submission
 
 Run this on a Unity login node:
 
@@ -24,9 +51,8 @@ Run this on a Unity login node:
 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_submit_f405.sh)
 ```
 
-The default request is 48 MPI ranks, 360 GiB, 72 hours, the `long` QOS, and an
-Intel AVX-512 node.  The memory request targets Unity's 500-GB-or-larger CPU
-nodes.  The architecture constraint avoids the cross-architecture illegal
+The legacy request is 48 MPI ranks, 120 GiB, 72 hours, the `long` QOS, and an
+Intel AVX-512 node.  The architecture constraint avoids the cross-architecture illegal
 instruction previously observed when a binary built on an AVX-512 Intel node
 was scheduled on a different CPU family.
 
