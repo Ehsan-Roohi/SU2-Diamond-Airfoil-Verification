@@ -42,7 +42,7 @@ required_tokens = (
     'Number of 2D model boundary edges: *4',
     'RUN_OK_F405.txt',
     'CONSTRAINT="${CONSTRAINT:-intel&x86_64_v4}"',
-    'MEMORY="${MEMORY:-360G}"',
+    'MEMORY="${MEMORY:-120G}"',
     'WALLTIME="${WALLTIME:-3-00:00:00}"',
     'EXPECTED_MFC_COMMIT=0c9a1d434410175ac483b8d71646455444e3b7eb',
     'c6c8b3f62da42ffe1d3318a7cf7c6a5d6b2a1c2c/mfc_grid_convergence',
