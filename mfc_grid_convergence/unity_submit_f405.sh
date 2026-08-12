@@ -7,7 +7,7 @@ set -Eeuo pipefail
 #   f405 = 4455 x 4050 cells
 #   dt = 1/8100, t_stop = 13.5
 #   save interval = 0.54
-#   48 MPI ranks, 360 GiB, 72 hours on an Intel AVX-512 CPU node
+#   48 MPI ranks, 120 GiB, 72 hours on an Intel AVX-512 CPU node
 #
 # The run is created in a new timestamped directory, uses --no-build, and by
 # default receives an afterany dependency on active mfc-a40-* jobs.  These
@@ -17,7 +17,7 @@ set -Eeuo pipefail
 DEFAULT_ROOT=/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification
 ROOT="${ROOT:-$DEFAULT_ROOT}"
 NTASKS="${NTASKS:-48}"
-MEMORY="${MEMORY:-360G}"
+MEMORY="${MEMORY:-120G}"
 WALLTIME="${WALLTIME:-3-00:00:00}"
 QOS="${QOS:-long}"
 CONSTRAINT="${CONSTRAINT:-intel&x86_64_v4}"
