@@ -248,6 +248,14 @@ fi
 
 previous_job=""
 submitted_jobs=()
+
+cancel_partial_submission() {
+    if (( ${#submitted_jobs[@]} )); then
+        echo "ERROR: cancelling partially submitted chain: ${submitted_jobs[*]}" >&2
+        scancel "${submitted_jobs[@]}" || true
+    fi
+}
+
 for array_index in 0 1 2; do
     segment_index=$((array_index + 1))
     start_step="${SEGMENT_STARTS[$array_index]}"
@@ -262,14 +270,24 @@ for array_index in 0 1 2; do
     fi
 
     export_values="ALL,CASE_DIR=$CASE_DIR,MFC_ROOT=$MFC_ROOT,SEGMENT_INDEX=$segment_index,START_STEP=$start_step,STOP_STEP=$stop_step,SAVE_EVERY=$SAVE_EVERY"
-    job_id="$({
+    if ! job_id="$({
         cd "$CASE_DIR"
         sbatch "${common_args[@]}" "${dependency_args[@]}" \
             --job-name="mfc-a40-f405-s${segment_index}" \
             --output="$CASE_DIR/slurm-s${segment_index}-%j.out" \
             --error="$CASE_DIR/slurm-s${segment_index}-%j.err" \
             --export="$export_values" "$SBATCH_FILE"
-    })"
+    })"; then
+        cancel_partial_submission
+        exit 4
+    fi
+    # Slurm may append ';cluster' to --parsable output.
+    job_id="${job_id%%;*}"
+    if [[ ! "$job_id" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: unexpected sbatch response '$job_id'." >&2
+        cancel_partial_submission
+        exit 4
+    fi
     previous_job="$job_id"
     submitted_jobs+=("$job_id")
     echo "JOB_${segment_index}=$job_id" | tee -a "$ENV_FILE"
