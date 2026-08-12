@@ -61,6 +61,13 @@ bc_y_beg, bc_y_end = boundary_pair(v_inf)
 
 case = {
     "run_time_info": "T",
+    # MFC 0c9a1d43's pre_process validator still requires the original domain
+    # bounds when old_grid=T. The old grid/state are nevertheless loaded from
+    # restart_data/lustre_<t_step_start>.dat.
+    "x_domain%beg": x_beg,
+    "x_domain%end": x_end,
+    "y_domain%beg": y_beg,
+    "y_domain%end": y_end,
     "m": m,
     "n": n,
     "p": 0,
