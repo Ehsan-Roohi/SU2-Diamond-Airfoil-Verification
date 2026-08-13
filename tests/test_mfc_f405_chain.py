@@ -71,11 +71,29 @@ required_tokens = (
     "RUN_OK_F405.txt",
     "Number of 2D model boundary edges: *4",
     "--no-build",
-    "flock -s -w 7200",
+    'exec flock -s -w 7200 "$LOCK_FILE" bash "$0"',
+    '[[ "${MFC_LOCK_HELD:-0}" != 1 ]]',
+    "printf '%s=%q\\n'",
+    'write_env CONSTRAINT "$CONSTRAINT"',
     "EXPECTED_MFC_COMMIT=0c9a1d434410175ac483b8d71646455444e3b7eb",
     "a10399ec9d9cf0b65bcb8eadd116054a15bbcc07/mfc_grid_convergence",
 )
 for token in required_tokens:
     assert token in submit, token
+
+assert "flock -s -w 7200 9" not in submit
+assert "CONSTRAINT=$CONSTRAINT" not in submit
+
+# The exact shell escaping used by submission.env must remain source-safe for
+# Slurm feature expressions containing '&'.
+env_text = subprocess.check_output(
+    ["bash", "-c", "printf 'CONSTRAINT=%q\\n' 'intel&x86_64_v4'"], text=True
+)
+round_trip = subprocess.check_output(
+    ["bash", "-c", "source /dev/stdin; printf %s \"$CONSTRAINT\""],
+    input=env_text,
+    text=True,
+)
+assert round_trip == "intel&x86_64_v4"
 
 print("mfc f405 three-stage workflow checks: PASS")
