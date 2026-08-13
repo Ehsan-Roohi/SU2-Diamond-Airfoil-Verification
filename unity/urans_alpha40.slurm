@@ -32,6 +32,7 @@ resolve_solver() {
     return
   fi
   local archive="$su2_install/SU2-v8.5.0-linux64-omp.zip"
+  local nested_archive="$su2_install/linux64-omp.zip"
   local found=""
   found="$(find "$su2_install" -type f -name SU2_CFD -print -quit 2>/dev/null || true)"
   if [[ -z "$found" ]]; then
@@ -45,8 +46,17 @@ resolve_solver() {
       exit 2
     }
     python3 -m zipfile -e "$archive" "$su2_install"
+    # The official v8.5.0 GitHub asset is a wrapper ZIP containing the
+    # actual Linux distribution as linux64-omp.zip.  Extract both layers.
+    if [[ -f "$nested_archive" ]]; then
+      python3 -m zipfile -e "$nested_archive" "$su2_install"
+    fi
     found="$(find "$su2_install" -type f -name SU2_CFD -print -quit)"
-    [[ -n "$found" ]] || { echo "FAILED_GATE: SU2_CFD missing after extraction" >&2; exit 2; }
+    [[ -n "$found" ]] || {
+      echo "FAILED_GATE: SU2_CFD missing after nested archive extraction" >&2
+      find "$su2_install" -maxdepth 2 -type f -printf '%P\n' >&2 || true
+      exit 2
+    }
   fi
   chmod +x "$found"
   readlink -f "$found"
