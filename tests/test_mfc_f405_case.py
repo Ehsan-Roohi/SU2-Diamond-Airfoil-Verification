@@ -38,7 +38,10 @@ required_tokens = (
     '--dependency=afterany:',
     'fixed_ib_a40_f405_jfm_',
     '--no-build',
-    'flock -s -w 7200',
+    'exec flock -s -w 7200 "$LOCK_FILE" bash "$0"',
+    '[[ "${MFC_LOCK_HELD:-0}" != 1 ]]',
+    "printf '%s=%q\\n'",
+    'write_env CONSTRAINT "$CONSTRAINT"',
     'Number of 2D model boundary edges: *4',
     'RUN_OK_F405.txt',
     'CONSTRAINT="${CONSTRAINT:-intel&x86_64_v4}"',
@@ -49,5 +52,8 @@ required_tokens = (
 )
 for token in required_tokens:
     assert token in submit, token
+
+assert "flock -s -w 7200 9" not in submit
+assert "CONSTRAINT=$CONSTRAINT" not in submit
 
 print("mfc f405 workflow checks: PASS")
