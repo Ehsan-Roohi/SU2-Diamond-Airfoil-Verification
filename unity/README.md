@@ -5,12 +5,12 @@ to SU2 8.5.0, Mach 3, alpha 40 degrees, Reynolds number 1e6, the 720x181 medium
 mesh, `dt=2.5e-6 s`, a 2,000-inner-iteration first-order BDF bootstrap, and
 600 inner iterations for second-order BDF production through step 12,000.
 
-Before submitting, download
-`URANS_alpha40_seed_checkpoint_iter20000.zip` from ChatGPT Library and upload it
-to your Unity home directory. Then, from a clone of this repository, run:
+The audited seed archive is versioned with the runner at
+`unity/assets/URANS_alpha40_seed_checkpoint_iter20000.zip`; no manual upload is
+required. From a clone of this branch, run:
 
 ```bash
-URANS_SEED_ZIP="$HOME/URANS_alpha40_seed_checkpoint_iter20000.zip" bash unity/submit_alpha40.sh
+bash unity/submit_alpha40.sh
 ```
 
 The submitter validates the seed and mesh before calling `sbatch`, and returns

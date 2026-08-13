@@ -30,3 +30,7 @@ unity_runs/
 URANS_alpha40_seed_checkpoint_iter*.zip
 URANS_alpha40_medium_halfdt_checkpoint_t*.zip
 slurm-urans-a40-mhdt-*.out
+
+# The audited alpha=40 seed is intentionally versioned with its runner.
+!unity/assets/
+!unity/assets/URANS_alpha40_seed_checkpoint_iter20000.zip

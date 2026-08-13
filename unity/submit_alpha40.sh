@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-seed_zip="${URANS_SEED_ZIP:-$HOME/URANS_alpha40_seed_checkpoint_iter20000.zip}"
+seed_zip="${URANS_SEED_ZIP:-$repo_root/unity/assets/URANS_alpha40_seed_checkpoint_iter20000.zip}"
 
 if ! command -v sbatch >/dev/null 2>&1 || ! command -v squeue >/dev/null 2>&1; then
   echo "FAILED_GATE: this command must be run on a Unity login node with Slurm." >&2
@@ -10,7 +10,7 @@ if ! command -v sbatch >/dev/null 2>&1 || ! command -v squeue >/dev/null 2>&1; t
 fi
 if [[ ! -f "$seed_zip" ]]; then
   echo "FAILED_GATE: missing $seed_zip" >&2
-  echo "Download URANS_alpha40_seed_checkpoint_iter20000.zip from ChatGPT Library and upload it to this exact path." >&2
+  echo "The GitHub checkout is incomplete; update branch agent/unity-urans-alpha40 and run again." >&2
   exit 2
 fi
 seed_zip="$(readlink -f "$seed_zip")"
