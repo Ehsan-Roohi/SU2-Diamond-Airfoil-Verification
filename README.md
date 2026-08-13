@@ -13,6 +13,11 @@ reconstruction of the mean-flow variables; then inspect residuals, force
 histories, physicality warnings, symmetry, shock angle, and wall resolution
 before accepting a result.
 
+The separate alpha=40-degree URANS/SST qualification study now has a
+restartable Unity/Slurm entry point in [`unity/README.md`](unity/README.md).
+It resumes only the validated medium-grid half-time-step stage and remains
+explicitly unqualified until the full grid/time-step/statistics protocol passes.
+
 > **Scientific status.** The files are executable teaching configurations. The
 > sharp-wall `euler_alpha0` case is a qualified teaching reference, not a
 > grid-converged benchmark; the other eight cases remain unverified. The numerical

@@ -24,3 +24,9 @@ smoke_test/logs/
 Thumbs.db
 *.tmp
 *.bak
+
+# Unity alpha=40 production outputs and checkpoint inputs
+unity_runs/
+URANS_alpha40_seed_checkpoint_iter*.zip
+URANS_alpha40_medium_halfdt_checkpoint_t*.zip
+slurm-urans-a40-mhdt-*.out
