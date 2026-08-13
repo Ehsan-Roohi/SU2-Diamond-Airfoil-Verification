@@ -177,9 +177,11 @@ mkdir -p build
 # A builder that needs the exclusive lock cannot modify MFC while f405 is
 # running.  The Slurm dependency normally means the current continuation has
 # already released its exclusive lock before this job starts.
-exec 9>build/.mfc-a40-startup.lock
-if command -v flock >/dev/null 2>&1; then
-    flock -s -w 7200 9
+LOCK_FILE="$MFC_ROOT/build/.mfc-a40-startup.lock"
+if command -v flock >/dev/null 2>&1 && [[ "${MFC_LOCK_HELD:-0}" != 1 ]]; then
+    export MFC_LOCK_HELD=1
+    echo "Waiting for shared MFC runtime lock: $LOCK_FILE"
+    exec flock -s -w 7200 "$LOCK_FILE" bash "$0"
 fi
 
 ./mfc.sh validate "$CASE_DIR/case.py" \
@@ -216,20 +218,22 @@ echo "RUN_OK_F405=$CASE_DIR/RUN_OK_F405.txt"
 SBATCH
 
 ENV_FILE="$RUN_BASE/submission.env"
-cat >"$ENV_FILE" <<EOF
-RUN_BASE=$RUN_BASE
-CASE_DIR=$CASE_DIR
-MFC_ROOT=$MFC_ROOT
-MFC_COMMIT=$actual_mfc_commit
-STEPS=$STEPS
-SAVE_EVERY=$SAVE_EVERY
-NTASKS=$NTASKS
-MEMORY=$MEMORY
-WALLTIME=$WALLTIME
-QOS=$QOS
-CONSTRAINT=$CONSTRAINT
-AFTER_JOB=$AFTER_JOB
-EOF
+: >"$ENV_FILE"
+write_env() {
+    printf '%s=%q\n' "$1" "$2" >>"$ENV_FILE"
+}
+write_env RUN_BASE "$RUN_BASE"
+write_env CASE_DIR "$CASE_DIR"
+write_env MFC_ROOT "$MFC_ROOT"
+write_env MFC_COMMIT "$actual_mfc_commit"
+write_env STEPS "$STEPS"
+write_env SAVE_EVERY "$SAVE_EVERY"
+write_env NTASKS "$NTASKS"
+write_env MEMORY "$MEMORY"
+write_env WALLTIME "$WALLTIME"
+write_env QOS "$QOS"
+write_env CONSTRAINT "$CONSTRAINT"
+write_env AFTER_JOB "$AFTER_JOB"
 
 sbatch_args=(
     --parsable
