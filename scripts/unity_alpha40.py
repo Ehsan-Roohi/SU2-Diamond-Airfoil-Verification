@@ -38,6 +38,13 @@ PRODUCTION_INNER_ITER = 600
 DEFAULT_TARGET_STEP = 12_000
 DEFAULT_CHUNK_STEPS = 20
 RESTART_STEM = "restart_medium_halfdt"
+RESUME_ARCHIVE_NAME = (
+    "URANS_alpha40_medium_halfdt_checkpoint_t000664.zip"
+)
+RESUME_PARTS_DIRNAME = RESUME_ARCHIVE_NAME + ".parts"
+RESUME_CHECKPOINT_RE = re.compile(
+    rf"^URANS_alpha40_{CASE_NAME}_checkpoint_t(\d{{6}})\.zip$"
+)
 
 REQUIRED_SCIENCE = {
     "SOLVER": "RANS",
@@ -244,6 +251,229 @@ def inspect_seed(seed_zip: Path) -> dict[str, Any]:
         "restart_extension": restart_extension,
         "restart_sha256": sha256_bytes(restart_bytes),
         "restart_size_bytes": len(restart_bytes),
+    }
+
+
+def json_archive_member(archive: zipfile.ZipFile, name: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(archive.read(name).decode("utf-8", errors="strict"))
+    except KeyError as exc:
+        raise GateFailure(f"resume checkpoint is missing {name}") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GateFailure(f"resume checkpoint has invalid JSON in {name}") from exc
+    if not isinstance(payload, dict):
+        raise GateFailure(f"resume checkpoint {name} must contain a JSON object")
+    return payload
+
+
+def inspect_resume_checkpoint(
+    checkpoint_zip: Path, seed_zip: Path
+) -> dict[str, Any]:
+    if not checkpoint_zip.is_file():
+        raise GateFailure(f"missing resume checkpoint: {checkpoint_zip}")
+    name_match = RESUME_CHECKPOINT_RE.match(checkpoint_zip.name)
+    if not name_match:
+        raise GateFailure(
+            "resume checkpoint filename does not match the audited alpha40 case"
+        )
+    filename_step = int(name_match.group(1))
+    seed_info = inspect_seed(seed_zip)
+
+    with zipfile.ZipFile(checkpoint_zip) as archive:
+        members = {
+            item.filename: item
+            for item in archive.infolist()
+            if not item.is_dir()
+        }
+        unsafe = [name for name in members if not safe_archive_member(name)]
+        if unsafe:
+            raise GateFailure(f"unsafe paths in resume checkpoint: {unsafe[:3]}")
+        manifest = json_archive_member(archive, "checkpoint_manifest.json")
+        status = json_archive_member(archive, "status.json")
+        seed_manifest = json_archive_member(archive, "seed/seed_manifest.json")
+
+        step = manifest.get("time_step")
+        if not isinstance(step, int) or step != filename_step:
+            raise GateFailure("resume checkpoint step disagrees with its filename")
+        if step < 1 or step >= DEFAULT_TARGET_STEP:
+            raise GateFailure("resume checkpoint step is outside the production range")
+        if manifest.get("checkpoint_file") != checkpoint_zip.name:
+            raise GateFailure("resume manifest has the wrong checkpoint filename")
+        for source, payload in (("manifest", manifest), ("status", status)):
+            if payload.get("case") != CASE_NAME:
+                raise GateFailure(f"resume {source} has the wrong case")
+            if payload.get("status") != "CHECKPOINTED":
+                raise GateFailure(f"resume {source} is not CHECKPOINTED")
+            if payload.get("qualification") != "NOT_QUALIFIED":
+                raise GateFailure(f"resume {source} has unexpected qualification")
+            if payload.get("time_step") != step:
+                raise GateFailure(f"resume {source} has an inconsistent time step")
+            if payload.get("nonphysical_points") != 0:
+                raise GateFailure(f"resume {source} reports nonphysical points")
+            if payload.get("target_time_step") != DEFAULT_TARGET_STEP:
+                raise GateFailure(f"resume {source} has the wrong target step")
+            try:
+                resume_dt = float(payload.get("dt_seconds"))
+            except (TypeError, ValueError) as exc:
+                raise GateFailure(f"resume {source} has an invalid time step size") from exc
+            if not math.isclose(resume_dt, PHYSICAL_DT, rel_tol=0.0, abs_tol=1e-15):
+                raise GateFailure(f"resume {source} has the wrong time step size")
+
+        if seed_manifest.get("seed_sha256") != seed_info["seed_sha256"]:
+            raise GateFailure("resume checkpoint was not derived from the bundled seed")
+        restart_extension = seed_manifest.get("restart_extension")
+        if restart_extension not in {".csv", ".dat"}:
+            raise GateFailure("resume checkpoint has no supported restart extension")
+        if "seed/seed_original.cfg" not in members:
+            raise GateFailure("resume checkpoint is missing seed/seed_original.cfg")
+        base_cfg = archive.read("seed/seed_original.cfg").decode(
+            "utf-8", errors="strict"
+        )
+        validate_science(parse_cfg_text(base_cfg), "resume seed config")
+
+        included = manifest.get("included_sha256")
+        if not isinstance(included, dict) or not included:
+            raise GateFailure("resume checkpoint has no included_sha256 manifest")
+        for member_name, expected_sha in included.items():
+            if not isinstance(member_name, str) or not safe_archive_member(member_name):
+                raise GateFailure("resume checkpoint manifest contains an unsafe path")
+            if member_name not in members:
+                raise GateFailure(f"resume checkpoint is missing {member_name}")
+            if not isinstance(expected_sha, str):
+                raise GateFailure(f"resume checksum is invalid for {member_name}")
+            actual_sha = sha256_bytes(archive.read(member_name))
+            if actual_sha != expected_sha:
+                raise GateFailure(f"resume checksum mismatch for {member_name}")
+
+        required = [
+            "status.json",
+            "seed/seed_manifest.json",
+            "seed/seed_original.cfg",
+            *[
+                f"{RESTART_STEM}_{level:05d}{restart_extension}"
+                for level in (step - 1, step)
+            ],
+        ]
+        missing = [name for name in required if name not in included]
+        if missing:
+            raise GateFailure(f"resume checkpoint lacks BDF2 restart levels: {missing}")
+
+    return {
+        "checkpoint_path": str(checkpoint_zip.resolve()),
+        "checkpoint_sha256": sha256_file(checkpoint_zip),
+        "checkpoint_size_bytes": checkpoint_zip.stat().st_size,
+        "time_step": step,
+        "restart_extension": restart_extension,
+        "included_sha256": included,
+        "manifest": manifest,
+    }
+
+
+def restore_checkpoint(
+    checkpoint_zip: Path,
+    seed_zip: Path,
+    repo_root: Path,
+    run_root: Path,
+) -> dict[str, Any]:
+    info = inspect_resume_checkpoint(checkpoint_zip, seed_zip)
+    validate_mesh(repo_root)
+    if latest_restart_step(run_root) is not None or (run_root / "status.json").exists():
+        raise GateFailure("refusing to overwrite an initialized run directory")
+    run_root.mkdir(parents=True, exist_ok=True)
+    included = info["included_sha256"]
+    with zipfile.ZipFile(checkpoint_zip) as archive:
+        for member_name in included:
+            destination = run_root / member_name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_suffix(destination.suffix + ".tmp")
+            temporary.write_bytes(archive.read(member_name))
+            os.replace(temporary, destination)
+    write_json(run_root / "seed" / "resume_checkpoint_manifest.json", info["manifest"])
+    if latest_restart_step(run_root) != info["time_step"]:
+        raise GateFailure("restored checkpoint did not reproduce its latest time step")
+    require_restart_levels(
+        run_root, info["time_step"] + 1, info["restart_extension"]
+    )
+    return info
+
+
+def assemble_resume_parts(parts_dir: Path, output_path: Path) -> dict[str, Any]:
+    manifest_path = parts_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise GateFailure(f"missing bundled resume manifest: {manifest_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GateFailure("bundled resume manifest is invalid JSON") from exc
+    if not isinstance(manifest, dict):
+        raise GateFailure("bundled resume manifest must be a JSON object")
+    if manifest.get("archive_name") != RESUME_ARCHIVE_NAME:
+        raise GateFailure("bundled resume manifest has the wrong archive name")
+    if output_path.name != RESUME_ARCHIVE_NAME:
+        raise GateFailure(f"resume output must be named {RESUME_ARCHIVE_NAME}")
+    expected_size = manifest.get("archive_size_bytes")
+    expected_sha = manifest.get("archive_sha256")
+    parts = manifest.get("parts")
+    if not isinstance(expected_size, int) or expected_size < 1:
+        raise GateFailure("bundled resume manifest has an invalid archive size")
+    if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+        raise GateFailure("bundled resume manifest has an invalid archive checksum")
+    if not isinstance(parts, list) or not parts:
+        raise GateFailure("bundled resume manifest has no parts")
+
+    if output_path.is_file():
+        if (
+            output_path.stat().st_size == expected_size
+            and sha256_file(output_path) == expected_sha
+        ):
+            return {
+                "archive_path": str(output_path.resolve()),
+                "archive_sha256": expected_sha,
+                "archive_size_bytes": expected_size,
+                "part_count": len(parts),
+                "reused": True,
+            }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_suffix(output_path.suffix + ".tmp")
+    archive_digest = hashlib.sha256()
+    written = 0
+    with temporary.open("wb") as destination:
+        for index, entry in enumerate(parts):
+            if not isinstance(entry, dict):
+                raise GateFailure(f"bundled resume part {index} is invalid")
+            name = entry.get("name")
+            size = entry.get("size_bytes")
+            expected_part_sha = entry.get("sha256")
+            if (
+                not isinstance(name, str)
+                or Path(name).name != name
+                or not safe_archive_member(name)
+            ):
+                raise GateFailure(f"bundled resume part {index} has an unsafe name")
+            if not isinstance(size, int) or size < 1:
+                raise GateFailure(f"bundled resume part {name} has an invalid size")
+            if not isinstance(expected_part_sha, str) or len(expected_part_sha) != 64:
+                raise GateFailure(f"bundled resume part {name} has an invalid checksum")
+            part_path = parts_dir / name
+            if not part_path.is_file() or part_path.stat().st_size != size:
+                raise GateFailure(f"bundled resume part is missing or truncated: {name}")
+            data = part_path.read_bytes()
+            if sha256_bytes(data) != expected_part_sha:
+                raise GateFailure(f"bundled resume checksum mismatch for {name}")
+            destination.write(data)
+            archive_digest.update(data)
+            written += len(data)
+    if written != expected_size or archive_digest.hexdigest() != expected_sha:
+        temporary.unlink(missing_ok=True)
+        raise GateFailure("reassembled resume archive failed its final checksum")
+    os.replace(temporary, output_path)
+    return {
+        "archive_path": str(output_path.resolve()),
+        "archive_sha256": expected_sha,
+        "archive_size_bytes": expected_size,
+        "part_count": len(parts),
+        "reused": False,
     }
 
 
@@ -526,13 +756,16 @@ def run_solver(
 
 
 def package_checkpoint(
-    repo_root: Path,
+    checkpoint_dir: Path,
     run_root: Path,
     step: int,
     manifest: dict[str, Any],
     restart_extension: str = ".csv",
 ) -> Path:
-    checkpoint = repo_root / f"URANS_alpha40_{CASE_NAME}_checkpoint_t{step:06d}.zip"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = checkpoint_dir / (
+        f"URANS_alpha40_{CASE_NAME}_checkpoint_t{step:06d}.zip"
+    )
     temporary = checkpoint.with_suffix(".zip.tmp")
     include: list[Path] = []
     for level in (max(0, step - 1), step):
@@ -547,6 +780,7 @@ def package_checkpoint(
         for path in (
             run_root / "seed" / "seed_original.cfg",
             run_root / "seed" / "seed_manifest.json",
+            run_root / "seed" / "resume_checkpoint_manifest.json",
             run_root / "status.json",
         )
         if path.is_file()
@@ -568,7 +802,28 @@ def package_checkpoint(
             json.dumps(payload, indent=2, sort_keys=True) + "\n",
         )
     os.replace(temporary, checkpoint)
+    for older in checkpoint_dir.glob(
+        f"URANS_alpha40_{CASE_NAME}_checkpoint_t*.zip"
+    ):
+        if older != checkpoint:
+            older.unlink()
     return checkpoint
+
+
+def prune_restart_levels(
+    run_root: Path, step: int, restart_extension: str
+) -> tuple[int, int]:
+    keep = {max(0, step - 1), step}
+    removed_files = 0
+    removed_bytes = 0
+    for path in run_root.glob(f"{RESTART_STEM}_*{restart_extension}"):
+        match = RESTART_RE.match(path.name)
+        if not match or int(match.group(1)) in keep:
+            continue
+        removed_bytes += path.stat().st_size
+        path.unlink()
+        removed_files += 1
+    return removed_files, removed_bytes
 
 
 def write_status(
@@ -598,7 +853,11 @@ def write_status(
 def run(args: argparse.Namespace) -> int:
     repo_root = args.repo_root.resolve()
     run_root = args.run_root.resolve()
+    checkpoint_dir = args.checkpoint_dir.resolve()
     seed_zip = args.seed.resolve()
+    resume_checkpoint = (
+        args.resume_checkpoint.resolve() if args.resume_checkpoint else None
+    )
     solver = args.solver.resolve()
     if not solver.is_file() or not os.access(solver, os.X_OK):
         raise GateFailure(f"SU2_CFD is not executable: {solver}")
@@ -624,7 +883,16 @@ def run(args: argparse.Namespace) -> int:
             (run_root / directory).mkdir(exist_ok=True)
         seed_manifest_path = run_root / "seed" / "seed_manifest.json"
         if not seed_manifest_path.is_file():
-            prepare_seed(seed_zip, repo_root, run_root)
+            if resume_checkpoint is not None:
+                restored = restore_checkpoint(
+                    resume_checkpoint, seed_zip, repo_root, run_root
+                )
+                print(
+                    f"# restored audited checkpoint at step {restored['time_step']}",
+                    flush=True,
+                )
+            else:
+                prepare_seed(seed_zip, repo_root, run_root)
         else:
             current = inspect_seed(seed_zip)
             recorded = json.loads(seed_manifest_path.read_text(encoding="utf-8"))
@@ -653,8 +921,9 @@ def run(args: argparse.Namespace) -> int:
                 "medium_halfdt target reached; matrix qualification is still pending",
             )
             package_checkpoint(
-                repo_root, run_root, latest, status, restart_extension
+                checkpoint_dir, run_root, latest, status, restart_extension
             )
+            prune_restart_levels(run_root, latest, restart_extension)
             return 0
 
         while latest < args.target_step:
@@ -720,7 +989,10 @@ def run(args: argparse.Namespace) -> int:
             )
             status["nonphysical_log_lines"] = warning_lines[-20:]
             checkpoint = package_checkpoint(
-                repo_root, run_root, new_latest, status, restart_extension
+                checkpoint_dir, run_root, new_latest, status, restart_extension
+            )
+            removed_files, removed_bytes = prune_restart_levels(
+                run_root, new_latest, restart_extension
             )
             print(
                 json.dumps(
@@ -730,6 +1002,8 @@ def run(args: argparse.Namespace) -> int:
                         "metrics": metrics,
                         "nonphysical_points": nonphysical,
                         "checkpoint": str(checkpoint),
+                        "pruned_restart_files": removed_files,
+                        "pruned_restart_bytes": removed_bytes,
                     },
                     sort_keys=True,
                 ),
@@ -750,11 +1024,20 @@ def build_parser() -> argparse.ArgumentParser:
     preflight = sub.add_parser("preflight", help="validate seed and mesh only")
     preflight.add_argument("--seed", type=Path, required=True)
     preflight.add_argument("--repo-root", type=Path, required=True)
+    preflight.add_argument("--resume-checkpoint", type=Path)
+
+    assemble = sub.add_parser(
+        "assemble-resume", help="reassemble the bundled resume archive"
+    )
+    assemble.add_argument("--parts-dir", type=Path, required=True)
+    assemble.add_argument("--output", type=Path, required=True)
 
     execute = sub.add_parser("run", help="run/restart medium_halfdt on Unity")
     execute.add_argument("--seed", type=Path, required=True)
     execute.add_argument("--repo-root", type=Path, required=True)
     execute.add_argument("--run-root", type=Path, required=True)
+    execute.add_argument("--checkpoint-dir", type=Path, required=True)
+    execute.add_argument("--resume-checkpoint", type=Path)
     execute.add_argument("--solver", type=Path, required=True)
     execute.add_argument("--threads", type=int, required=True)
     execute.add_argument("--target-step", type=int, default=DEFAULT_TARGET_STEP)
@@ -777,6 +1060,10 @@ def main() -> int:
                 **inspect_seed(args.seed.resolve()),
                 **validate_mesh(args.repo_root.resolve()),
             }
+            if args.resume_checkpoint:
+                payload["resume_checkpoint"] = inspect_resume_checkpoint(
+                    args.resume_checkpoint.resolve(), args.seed.resolve()
+                )
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.command == "status":
@@ -784,6 +1071,12 @@ def main() -> int:
             if not path.is_file():
                 raise GateFailure(f"no status file yet: {path}")
             print(path.read_text(encoding="utf-8"), end="")
+            return 0
+        if args.command == "assemble-resume":
+            payload = assemble_resume_parts(
+                args.parts_dir.resolve(), args.output.resolve()
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.threads < 1:
             raise GateFailure("threads must be positive")

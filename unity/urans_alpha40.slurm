@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=urans-a40-mhdt
+#SBATCH --job-name=urans-a40-prj
 #SBATCH --partition=cpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -15,12 +15,14 @@ set -euo pipefail
 
 repo_root="${URANS_REPO_ROOT:-$SLURM_SUBMIT_DIR}"
 seed_zip="${URANS_SEED_ZIP:?URANS_SEED_ZIP is required}"
-run_root="${URANS_RUN_ROOT:-$repo_root/unity_runs/urans_alpha40/medium_halfdt}"
+resume_zip="${URANS_RESUME_ZIP:-}"
+run_root="${URANS_RUN_ROOT:?URANS_RUN_ROOT is required}"
+checkpoint_dir="${URANS_CHECKPOINT_DIR:?URANS_CHECKPOINT_DIR is required}"
 threads="${SLURM_CPUS_PER_TASK:-16}"
 
 su2_url="https://github.com/su2code/SU2/releases/download/v8.5.0/SU2-v8.5.0-linux64-omp.zip"
 su2_sha256="aadc800cd9df34deff99d4725f5897f620c9f2979f62ab235313311bf501f09b"
-su2_install="${URANS_SU2_HOME:-$HOME/.local/opt/su2-8.5.0-omp}"
+su2_install="${URANS_SU2_HOME:?URANS_SU2_HOME is required}"
 
 resolve_solver() {
   if [[ -n "${SU2_CFD_BIN:-}" && -x "${SU2_CFD_BIN}" ]]; then
@@ -85,10 +87,17 @@ checkpoint_and_requeue() {
 }
 trap checkpoint_and_requeue USR1 TERM
 
+resume_args=()
+if [[ -n "$resume_zip" && -f "$resume_zip" ]]; then
+  resume_args=(--resume-checkpoint "$resume_zip")
+fi
+
 python3 "$repo_root/scripts/unity_alpha40.py" run \
   --repo-root "$repo_root" \
   --run-root "$run_root" \
+  --checkpoint-dir "$checkpoint_dir" \
   --seed "$seed_zip" \
+  "${resume_args[@]}" \
   --solver "$solver" \
   --threads "$threads" \
   --target-step 12000 \
