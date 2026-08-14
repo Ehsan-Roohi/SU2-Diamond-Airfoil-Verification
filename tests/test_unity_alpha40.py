@@ -64,6 +64,7 @@ class UnityAlpha40Tests(unittest.TestCase):
             self.assertEqual(first["TIME_STEP"], "2.5e-06")
             self.assertEqual(first["RESTART_ITER"], "1")
             self.assertEqual(first["TIME_ITER"], "2")
+            self.assertNotIn("ITER", first)
 
             bdf2, _ = MODULE.make_config(BASE_CFG, root, 2, 4)
             second = MODULE.parse_cfg_text(bdf2)
@@ -72,6 +73,7 @@ class UnityAlpha40Tests(unittest.TestCase):
             self.assertEqual(second["RESTART_ITER"], "2")
             self.assertEqual(second["TIME_ITER"], "5")
             self.assertEqual(second["CONV_NUM_METHOD_FLOW"], "ROE")
+            self.assertNotIn("ITER", second)
 
             binary, _ = MODULE.make_config(
                 BASE_CFG, root, 2, 4, restart_extension=".dat"

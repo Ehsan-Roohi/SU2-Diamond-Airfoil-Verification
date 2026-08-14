@@ -52,6 +52,7 @@ OPERATIONAL_KEYS = {
     "DISCARD_INFILES",
     "HISTORY_OUTPUT",
     "INNER_ITER",
+    "ITER",
     "MESH_FILENAME",
     "OUTPUT_FILES",
     "OUTPUT_WRT_FREQ",
@@ -271,8 +272,13 @@ def validate_mesh(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def cfg_with_overrides(base_text: str, overrides: dict[str, str]) -> str:
+def cfg_with_overrides(
+    base_text: str,
+    overrides: dict[str, str],
+    remove_keys: set[str] | None = None,
+) -> str:
     pending = {key.upper(): value for key, value in overrides.items()}
+    removed = {key.upper() for key in (remove_keys or set())}
     output: list[str] = []
     seen: set[str] = set()
     for raw in base_text.splitlines():
@@ -281,6 +287,8 @@ def cfg_with_overrides(base_text: str, overrides: dict[str, str]) -> str:
             output.append(raw)
             continue
         key = code.split("=", 1)[0].strip().upper()
+        if key in removed:
+            continue
         if key in pending:
             if key in seen:
                 continue
@@ -469,7 +477,8 @@ def make_config(
         "SCREEN_OUTPUT": "(TIME_ITER, INNER_ITER, RMS_DENSITY, RMS_TKE, RMS_DISSIPATION, LIFT, DRAG)",
         "HISTORY_OUTPUT": "(TIME_ITER, INNER_ITER, RMS_RES, AERO_COEFF, AERO_COEFF_SURF)",
     }
-    rendered = cfg_with_overrides(base_text, overrides)
+    # ITER is a steady/legacy control and SU2 8.5 rejects it in unsteady mode.
+    rendered = cfg_with_overrides(base_text, overrides, remove_keys={"ITER"})
     validate_science(parse_cfg_text(rendered), "generated Unity config")
     return rendered, history_stem
 
