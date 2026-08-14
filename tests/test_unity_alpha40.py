@@ -98,6 +98,31 @@ class UnityAlpha40Tests(unittest.TestCase):
         self.assertEqual(values["TIME_DOMAIN"], "YES")
         self.assertEqual(values["INNER_ITER"], "600")
 
+    def test_solver_receives_absolute_config_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_root = root / "run"
+            config_dir = run_root / "configs"
+            log_dir = run_root / "logs"
+            config_dir.mkdir(parents=True)
+            log_dir.mkdir()
+            cfg_path = config_dir / "chunk.cfg"
+            cfg_path.write_text("SOLVER= RANS\n", encoding="utf-8")
+            solver = root / "mock_solver.sh"
+            solver.write_text(
+                "#!/usr/bin/env bash\n"
+                "last=\"${@: -1}\"\n"
+                "[[ \"$last\" = /* && -f \"$last\" ]]\n",
+                encoding="utf-8",
+            )
+            solver.chmod(0o755)
+            log_path = log_dir / "solver.log"
+            returncode = MODULE.run_solver(
+                solver, 2, cfg_path, run_root, log_path
+            )
+            self.assertEqual(returncode, 0)
+            self.assertIn(str(cfg_path.resolve()), log_path.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

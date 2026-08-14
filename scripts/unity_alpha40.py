@@ -490,7 +490,7 @@ def run_solver(
     log_path: Path,
 ) -> int:
     global ACTIVE_SOLVER
-    command = [str(solver), "-t", str(threads), cfg_path.name]
+    command = [str(solver), "-t", str(threads), str(cfg_path.resolve())]
     with log_path.open("w", encoding="utf-8", newline="") as log:
         log.write(f"# started_utc: {utc_now()}\n")
         log.write(f"# command: {' '.join(command)}\n")
@@ -510,6 +510,7 @@ def run_solver(
             sys.stdout.flush()
             log.write(line)
             log.flush()
+        ACTIVE_SOLVER.stdout.close()
         returncode = ACTIVE_SOLVER.wait()
         ACTIVE_SOLVER = None
     return returncode
