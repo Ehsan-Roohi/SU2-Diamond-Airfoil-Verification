@@ -96,3 +96,18 @@ bow-shock stand-off, reverse-flow area, and large-scale RMS measures.  Treat
 individual small wake-vortex phase, count, and peak vorticity separately: a
 shock-capturing Euler calculation can converge in large-scale observables while
 remaining phase-sensitive at the smallest resolved scales.
+
+## Compact f405 package for analysis and movies
+
+After all three f405 segments complete, submit the lightweight packaging job:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_submit_pack_f405.sh)
+```
+
+It places one timestamped `MFC_A40_F405_MOVIE_READY_*.zip` plus its SHA-256
+file in the repository root.  The ZIP retains all 26 physical snapshots from
+`t=0` to `13.5` on a stride-6 near-field/wake crop and includes pressure,
+density, velocity, the immersed-boundary mask, force arrays, logs, and run
+metadata.  Raw Silo and restart files remain on Unity.  Schlieren, vorticity,
+and streamlines are derived from the packed primitive fields.
