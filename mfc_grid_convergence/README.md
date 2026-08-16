@@ -168,3 +168,41 @@ will not write the completion marker unless all 26 IB-state records exist and
 the late-time force signal is finite and nonzero.  After it completes, rerun
 the three-grid recovery command above; the newest valid f180 case is selected
 automatically.
+
+## f608 production follow-up
+
+The repaired, nonzero f180 force history gives the following common-window
+load sequence at `t >= 8.64`:
+
+| Metric | f180 | f270 | f405 | f270-to-f405 | Observed order | f405 GCI |
+|---|---:|---:|---:|---:|---:|---:|
+| CD | 0.823644 | 0.838508 | 0.850956 | 1.463% | 0.437 | 9.423% |
+| CL | 0.913784 | 0.934102 | 0.949090 | 1.579% | 0.750 | 5.550% |
+
+The sequence is monotonic, but the last-grid change exceeds one percent and
+the low observed orders show that the loads are not yet demonstrably in the
+asymptotic range.  A fourth level is therefore warranted.  The `f608` label
+denotes the exact next target of 607.5 cells per chord.  Integer Cartesian
+counts give `6682 x 6075` cells, with `dt=1/12150`, 164025 steps, and the same
+26 physical output times from `t=0` to `13.5` at `Delta(t)=0.54`.
+
+The production submitter uses five `afterok`-chained segments.  Each segment
+covers `Delta(t)=2.7`, requests 48 MPI ranks, 120 GiB, and 48 hours on one CPU
+node, and writes a restart before the next segment can begin.  The memory
+request follows the measured f270 peak scaled by grid area (about 104.5 GiB
+predicted for f608).  Scaling the completed f180 runtime by total cell-step
+work predicts about 165 wall-clock hours overall, or about 33 hours per
+segment.  No QOS is requested by default.
+
+Run this on a Unity login node:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_submit_f608_chain.sh)
+```
+
+The submitter verifies the immutable case and STL SHA-256 digests, the pinned
+MFC commit, all five parameter sets, checkpoint existence, four immersed-body
+edges, all 26 final IB-state records, physical times, and a finite nonzero
+late-time load.  Only the fifth successful segment writes
+`RUN_OK_F608.txt`.  To delay the first segment explicitly, prefix the command
+with `AFTER_JOB=<job-id>`; otherwise the default is `AFTER_JOB=none`.
