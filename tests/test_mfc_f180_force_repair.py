@@ -34,6 +34,8 @@ submit = submit_path.read_text(encoding="utf-8")
 for token in (
     'MEMORY="${MEMORY:-32G}"',
     'WALLTIME="${WALLTIME:-12:00:00}"',
+    'QOS="${QOS:-}"',
+    'qos_args+=(--qos="$QOS")',
     'CONSTRAINT="${CONSTRAINT:-intel&x86_64_v4}"',
     "EXPECTED_MFC_COMMIT=0c9a1d434410175ac483b8d71646455444e3b7eb",
     "fixed_ib_a40_f180_force_repair_jfm_",

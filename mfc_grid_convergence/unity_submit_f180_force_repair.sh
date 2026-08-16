@@ -9,7 +9,7 @@ ROOT="${ROOT:-$DEFAULT_ROOT}"
 NTASKS="${NTASKS:-48}"
 MEMORY="${MEMORY:-32G}"
 WALLTIME="${WALLTIME:-12:00:00}"
-QOS="${QOS:-default}"
+QOS="${QOS:-}"
 CONSTRAINT="${CONSTRAINT:-intel&x86_64_v4}"
 AFTER_JOB="${AFTER_JOB:-none}"
 STEPS=48600
@@ -90,6 +90,11 @@ if [[ -n "$AFTER_JOB" && "$AFTER_JOB" != none ]]; then
         exit 2
     fi
     dependency_args+=(--dependency="afterany:${AFTER_JOB}")
+fi
+
+qos_args=()
+if [[ -n "$QOS" ]]; then
+    qos_args+=(--qos="$QOS")
 fi
 
 SBATCH_FILE="$CASE_DIR/run_f180_force_repair.sbatch"
@@ -185,7 +190,7 @@ write_env CONSTRAINT "$CONSTRAINT"
 write_env AFTER_JOB "$AFTER_JOB"
 
 job_id=$(sbatch --parsable \
-    --ntasks="$NTASKS" --mem="$MEMORY" --time="$WALLTIME" --qos="$QOS" \
+    --ntasks="$NTASKS" --mem="$MEMORY" --time="$WALLTIME" "${qos_args[@]}" \
     --constraint="$CONSTRAINT" "${dependency_args[@]}" \
     --job-name=mfc-a40-f180-force \
     --output="$CASE_DIR/slurm-%j.out" --error="$CASE_DIR/slurm-%j.err" \
