@@ -65,7 +65,7 @@ def expected_steps(level: dict[str, object]) -> list[int]:
     return list(range(0, final_step + 1, save_every))
 
 
-def discover_case(root: Path, label: str, level: dict[str, object]) -> Path:
+def discover_cases(root: Path, label: str, level: dict[str, object]) -> list[Path]:
     runs = root / "mfc_runs"
     final_name = f"ib_state_{level['final_step']}.dat"
     patterns = (
@@ -86,13 +86,40 @@ def discover_case(root: Path, label: str, level: dict[str, object]) -> Path:
             f"No complete {label} case with all {len(required)} expected IB-state "
             f"records was found below {runs}; expected final file {final_name}"
         )
-    return max(candidates, key=lambda item: item[0])[1]
+    return [case_dir for _, case_dir in sorted(candidates, reverse=True)]
 
 
-def extract_history(
+def make_row(
+    step: int, time: float, force_x: float, force_y: float, label: str
+) -> dict[str, float | int]:
+    alpha = math.radians(ALPHA_DEG)
+    drag = force_x * math.cos(alpha) + force_y * math.sin(alpha)
+    lift = -force_x * math.sin(alpha) + force_y * math.cos(alpha)
+    row: dict[str, float | int] = {
+        "step": step,
+        "time": time,
+        "force_x": force_x,
+        "force_y": force_y,
+        "drag": drag,
+        "lift": lift,
+        "CD": drag / (Q_INF * CHORD),
+        "CL": lift / (Q_INF * CHORD),
+    }
+    if not all(math.isfinite(float(value)) for value in row.values()):
+        raise RuntimeError(f"{label} contains NaN or Inf at step {step}")
+    return row
+
+
+def has_nonzero_late_force(rows: list[dict[str, float | int]]) -> bool:
+    late = [row for row in rows if float(row["time"]) >= LATE_START - 1.0e-9]
+    return bool(late) and max(
+        math.hypot(float(row["force_x"]), float(row["force_y"])) for row in late
+    ) > 1.0e-10
+
+
+def extract_ib_state_history(
     case_dir: Path, label: str, level: dict[str, object]
 ) -> list[dict[str, float | int]]:
-    alpha = math.radians(ALPHA_DEG)
     rows: list[dict[str, float | int]] = []
     for step in expected_steps(level):
         path = case_dir / "restart_data" / f"ib_state_{step}.dat"
@@ -107,22 +134,75 @@ def extract_history(
             raise RuntimeError(
                 f"Unexpected physical time in {path}: {time} != {expected_time}"
             )
-        drag = force_x * math.cos(alpha) + force_y * math.sin(alpha)
-        lift = -force_x * math.sin(alpha) + force_y * math.cos(alpha)
-        row: dict[str, float | int] = {
-            "step": step,
-            "time": time,
-            "force_x": force_x,
-            "force_y": force_y,
-            "drag": drag,
-            "lift": lift,
-            "CD": drag / (Q_INF * CHORD),
-            "CL": lift / (Q_INF * CHORD),
-        }
-        if not all(math.isfinite(float(value)) for value in row.values()):
-            raise RuntimeError(f"{label} contains NaN or Inf at step {step}")
-        rows.append(row)
+        rows.append(make_row(step, time, force_x, force_y, label))
     return rows
+
+
+def decode(value: object) -> str:
+    return value.decode() if isinstance(value, bytes) else str(value)
+
+
+def extract_silo_history(
+    case_dir: Path, label: str, level: dict[str, object]
+) -> list[dict[str, float | int]]:
+    try:
+        import h5py
+    except ImportError as error:
+        raise RuntimeError(
+            f"{label} IB-state forces are all zero and h5py is unavailable for "
+            "the rank-0 Silo fallback"
+        ) from error
+
+    rows: list[dict[str, float | int]] = []
+    for step in expected_steps(level):
+        path = case_dir / "silo_hdf5" / "p0" / f"{step}.silo"
+        if not path.is_file():
+            raise RuntimeError(f"Missing rank-0 Silo fallback snapshot: {path}")
+        with h5py.File(path, "r") as handle:
+            values = []
+            for name in ("ib_force_x", "ib_force_y"):
+                if name not in handle:
+                    raise RuntimeError(f"{name} is absent from {path}")
+                meta = handle[name].attrs["silo"]
+                values.append(float(handle[decode(meta["data0"])][0]))
+        rows.append(
+            make_row(
+                step,
+                step * float(level["dt"]),
+                values[0],
+                values[1],
+                label,
+            )
+        )
+    return rows
+
+
+def select_case_and_history(
+    root: Path, label: str, level: dict[str, object]
+) -> tuple[Path, list[dict[str, float | int]], str]:
+    failures: list[str] = []
+    for case_dir in discover_cases(root, label, level):
+        try:
+            rows = extract_ib_state_history(case_dir, label, level)
+            if has_nonzero_late_force(rows):
+                return case_dir, rows, "ib_state"
+            print(
+                f"WARNING: {label} IB-state loads are all zero in {case_dir}; "
+                "trying rank-0 Silo loads",
+                flush=True,
+            )
+            rows = extract_silo_history(case_dir, label, level)
+            if has_nonzero_late_force(rows):
+                return case_dir, rows, "rank0_silo"
+            failures.append(f"{case_dir}: both IB-state and rank-0 Silo loads are zero")
+        except RuntimeError as error:
+            failures.append(f"{case_dir}: {error}")
+    details = "\n  - ".join(failures)
+    raise RuntimeError(
+        f"No scientifically valid {label} force history was found. "
+        f"All-zero histories cannot be used for Richardson/GCI analysis."
+        + (f"\n  - {details}" if details else "")
+    )
 
 
 def summarize(
@@ -130,6 +210,7 @@ def summarize(
     label: str,
     level: dict[str, object],
     rows: list[dict[str, float | int]],
+    force_source: str,
 ) -> dict[str, object]:
     active = [row for row in rows if float(row["time"]) > 0.0]
     late = [row for row in rows if float(row["time"]) >= LATE_START - 1.0e-9]
@@ -152,6 +233,7 @@ def summarize(
         "dt": level["dt"],
         "save_every": level["save_every"],
         "source_case": str(case_dir),
+        "force_source": force_source,
         "records": len(rows),
         "late_start": LATE_START,
         "late_samples": len(late),
@@ -238,10 +320,10 @@ def main() -> None:
     summaries: dict[str, dict[str, object]] = {}
     output_files: list[Path] = []
     for label, level in LEVELS.items():
-        case_dir = discover_case(root, label, level)
+        case_dir, rows, force_source = select_case_and_history(root, label, level)
         print(f"{label.upper()}_CASE={case_dir}", flush=True)
-        rows = extract_history(case_dir, label, level)
-        summary = summarize(case_dir, label, level, rows)
+        print(f"{label.upper()}_FORCE_SOURCE={force_source}", flush=True)
+        summary = summarize(case_dir, label, level, rows, force_source)
         summaries[label] = summary
 
         history_path = output_dir / f"MFC_A40_{label.upper()}_FORCE_HISTORY.csv"

@@ -149,3 +149,8 @@ It recommends `STOP_AT_F405` only when both load coefficients are monotonic and
 the f270-to-f405 change and f405 GCI are each at most one percent; otherwise it
 recommends `RUN_F608`.  The final ZIP and checksum paths are printed as
 `UPLOAD_THIS` and `UPLOAD_SHA256`.
+
+All-zero force histories are rejected rather than treated as coarse-grid data.
+For older runs whose `ib_state_*.dat` records contain zero loads, the tool uses
+the `ib_force_x` and `ib_force_y` variables in the rank-0 Silo snapshots as a
+validated fallback and records the selected force source in its JSON output.

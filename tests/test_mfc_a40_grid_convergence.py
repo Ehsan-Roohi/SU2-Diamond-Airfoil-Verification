@@ -83,8 +83,29 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "MFC_A40_GRID_CONVERGENCE_SUMMARY.json" in names
     assert (output / f"{archive.name}.sha256.txt").is_file()
 
+    for step in range(1944, 48600 + 1, 1944):
+        path = project / "mfc_runs" / "run_f180" / "case" / "restart_data" / f"ib_state_{step}.dat"
+        record = (step / 3600.0, 0.0, 0.0) + (0.0,) * 17
+        path.write_bytes(struct.pack("=20d", *record))
+    invalid = subprocess.run(
+        [
+            sys.executable,
+            str(recovery),
+            "--root",
+            str(project),
+            "--output-dir",
+            str(Path(temporary) / "invalid-output"),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert invalid.returncode != 0
+    assert "All-zero histories cannot be used" in invalid.stderr
+
 shell = wrapper.read_text(encoding="utf-8")
 assert "recover_a40_grid_convergence.py" in shell
+assert "import h5py" in shell
 assert "UPLOAD_THIS" not in shell  # The Python reporter owns canonical paths.
 
 print("mfc alpha=40 three-grid convergence checks: PASS")
