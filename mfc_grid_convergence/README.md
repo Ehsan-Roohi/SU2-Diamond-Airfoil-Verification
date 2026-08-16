@@ -111,3 +111,23 @@ file in the repository root.  The ZIP retains all 26 physical snapshots from
 density, velocity, the immersed-boundary mask, force arrays, logs, and run
 metadata.  Raw Silo and restart files remain on Unity.  Schlieren, vorticity,
 and streamlines are derived from the packed primitive fields.
+
+## Recover f405 forces without rerunning MFC
+
+The original compact-package script could silently leave the force arrays as
+`NaN` when MPI rank 0 did not overlap the selected movie crop.  The corrected
+packer reads rank-0 loads independently of spatial cropping and refuses to
+create a package if any saved load is non-finite.
+
+For an already completed f405 chain, recover the physical force history
+directly from MFC's `restart_data/ib_state_*.dat` records.  This does not rerun
+the solver and creates only a small CSV, JSON summary, ZIP, and SHA-256 file:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_recover_f405_forces.sh)
+```
+
+The command prints `UPLOAD_THIS` and `UPLOAD_SHA256` when it finishes.  Drag
+is resolved along the Mach-3 freestream at 40 degrees and lift along its
+counterclockwise normal, then both are normalized by
+`0.5 * rho_inf * U_inf^2 * chord`.

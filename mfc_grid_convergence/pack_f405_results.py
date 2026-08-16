@@ -129,6 +129,13 @@ def main() -> None:
             if not path.is_file():
                 raise RuntimeError(f"Missing partition snapshot: {path}")
             with h5py.File(path, "r") as handle:
+                # MFC writes integrated IB loads only to the rank-0 Silo slave.
+                # Read them before checking crop overlap: p0 can lie completely
+                # outside the requested near-field crop while still owning the
+                # point-mesh force variables.
+                if ip == 0:
+                    force_x[it] = read_point(handle, "ib_force_x")
+                    force_y[it] = read_point(handle, "ib_force_y")
                 ix, iy, sx, sy = partition_layout(handle)
                 local_x, target_x = matched_positions(ix, ix_selected)
                 local_y, target_y = matched_positions(iy, iy_selected)
@@ -142,9 +149,6 @@ def main() -> None:
                 ib_core = read_quadvar(handle, "ib_markers")[sx, sy]
                 ib_mask[it][target] = (ib_core[source] > 0.5).astype(np.uint8)
                 coverage[target] += 1
-                if ip == 0:
-                    force_x[it] = read_point(handle, "ib_force_x")
-                    force_y[it] = read_point(handle, "ib_force_y")
         if coverage.min() != 1 or coverage.max() != 1:
             raise RuntimeError(
                 f"Invalid cropped partition coverage for step {step}: "
@@ -153,6 +157,12 @@ def main() -> None:
         print(
             f"packed {it + 1:2d}/{len(steps)}: step={step}, t={step * DT:.5f}",
             flush=True,
+        )
+
+    if not (np.isfinite(force_x).all() and np.isfinite(force_y).all()):
+        raise RuntimeError(
+            "IB force variables were not recovered from the rank-0 Silo files; "
+            "refusing to create a compact package with silent NaN loads"
         )
 
     output = args.output.resolve()

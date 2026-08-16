@@ -43,6 +43,12 @@ for token in (
 ):
     assert token in text, token
 
+force_read = text.index("if ip == 0:")
+crop_skip = text.index("if not local_x.size or not local_y.size:")
+assert force_read < crop_skip
+assert "np.isfinite(force_x).all()" in text
+assert "np.isfinite(force_y).all()" in text
+
 if submitter.exists():
     shell = submitter.read_text(encoding="utf-8")
     for token in (
