@@ -131,3 +131,21 @@ The command prints `UPLOAD_THIS` and `UPLOAD_SHA256` when it finishes.  Drag
 is resolved along the Mach-3 freestream at 40 degrees and lift along its
 counterclockwise normal, then both are normalized by
 `0.5 * rho_inf * U_inf^2 * chord`.
+
+## Three-grid force convergence and f608 decision
+
+Once the f180, f270, and f405 runs are complete, recover all three force
+histories and evaluate the common late-time window with one login-node command:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_recover_a40_grid_convergence.sh)
+```
+
+The tool locates complete 26-state cases by their expected final IB-state
+records, verifies every physical time, applies the same force rotation and
+normalization, and reports the f180/f270/f405 means.  For monotonic convergence
+it also computes observed order, Richardson extrapolation, and fine-grid GCI.
+It recommends `STOP_AT_F405` only when both load coefficients are monotonic and
+the f270-to-f405 change and f405 GCI are each at most one percent; otherwise it
+recommends `RUN_F608`.  The final ZIP and checksum paths are printed as
+`UPLOAD_THIS` and `UPLOAD_SHA256`.
