@@ -154,3 +154,17 @@ All-zero force histories are rejected rather than treated as coarse-grid data.
 For older runs whose `ib_state_*.dat` records contain zero loads, the tool uses
 the `ib_force_x` and `ib_force_y` variables in the rank-0 Silo snapshots as a
 validated fallback and records the selected force source in its JSON output.
+
+If both the historical IB-state and rank-0 Silo loads are zero, do not use
+that grid in Richardson/GCI calculations.  Submit the clean f180 repair run:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/add-mfc-f405-grid-study/mfc_grid_convergence/unity_submit_f180_force_repair.sh)
+```
+
+This is a full but inexpensive f180 rerun on the same pinned MFC commit and
+the same physical interval and output cadence as f270/f405.  Its batch job
+will not write the completion marker unless all 26 IB-state records exist and
+the late-time force signal is finite and nonzero.  After it completes, rerun
+the three-grid recovery command above; the newest valid f180 case is selected
+automatically.
