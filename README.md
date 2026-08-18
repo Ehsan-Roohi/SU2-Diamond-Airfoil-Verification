@@ -22,6 +22,11 @@ before accepting a result.
 > case-specific reference run has not been established. Do not fill those cells
 > from a figure or from a different mesh.
 
+Open SU2, MFC, Nektar++, and Unity research branches are tracked separately in
+[`RESEARCH_STATUS.md`](RESEARCH_STATUS.md).  They are drafts and are not part of
+the public teaching baseline unless a pull request is explicitly qualified and
+merged.
+
 An independent v8.5.0 verification check found that earlier Roe-flux
 `euler_alpha0` settings
 did **not** satisfy their residual, nonphysical-state, or force-window criteria.
