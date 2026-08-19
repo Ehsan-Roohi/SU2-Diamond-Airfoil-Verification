@@ -1,0 +1,133 @@
+{
+  "archive_name": "URANS_alpha40_medium_halfdt_checkpoint_t000664.zip",
+  "archive_sha256": "090e90fe731a0dddb3f63bbe49dd70c3f9e6f4e76125b696c7badd6b8f47a2c1",
+  "archive_size_bytes": 18344850,
+  "part_size_bytes": 750000,
+  "parts": [
+    {
+      "name": "part-0000",
+      "sha256": "2c186031cfae98c0dbcad8138581974b87100b0a19b6d6ae4183d8c56e7a8b0c",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0001",
+      "sha256": "074f39580c23e21635315d740f0b0ead99fce5e513e1af9be1c742c9e42f1ea9",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0002",
+      "sha256": "ea977c22da1c6e0d766bf761d80d06a11b4529ffc32ca95beb9633d50de9a2cb",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0003",
+      "sha256": "02233b289fd9883cca943f4cf8a421a6b86aff122222d93f2a797cf590b2acfa",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0004",
+      "sha256": "f77d98149f1e358d9c3d856f22c98717e7df4d490582cf38c4a569b4ef484c00",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0005",
+      "sha256": "e4c9ca90aa30c772bed3bbae38ef46eeaec7825ac665fa07e6e0a5514418507a",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0006",
+      "sha256": "34816e96d066d06e96fc346b9e10a6bfe64b27e4510589db65d48e026827ca09",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0007",
+      "sha256": "db3bb0a18b1c93a6eeab40c0166cafa421352c62ec27606b35be007ca1486c13",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0008",
+      "sha256": "ba2c66d998c93295631ba70ba294d3fc60b0b5095ae3c0819c90a426dcfd6dc6",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0009",
+      "sha256": "8b8527dd5616694b9cbd4b00da9f9cb453f517b3b2ba6cd2d424ccb76561f058",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0010",
+      "sha256": "420b7a7919edbb188a6c8af87be5d458a162d261ab2f990876f740525b2a434f",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0011",
+      "sha256": "bf0c8df672ab92760a6211d5889ee442e13748061c152706d93a8f7e4624d64a",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0012",
+      "sha256": "c36ac01ed8a02321a2d2ba486631a2c0d6f08b809a73688e93803154dd96443f",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0013",
+      "sha256": "bc67c7bd43ee8931999b177a9e730e2028e441b6a901ebf5b3664defd5af12fc",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0014",
+      "sha256": "576e0fba368c2295a5176d4f2a0db463e463dce7e91860f630d67a01e86d29c3",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0015",
+      "sha256": "ce5d220af0bfd8460cb53fdd7ca4730e64e9acf9799493c4561740b569550480",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0016",
+      "sha256": "4af9e78e099ec2adc23f5e71aeb9ba666c98aac63834624416daa055a40aaa80",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0017",
+      "sha256": "6001e2ea858c00684c6e39fad782a0bf84a87a92a85a8fa7221ad3bf2ca508c0",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0018",
+      "sha256": "0382b79ba2202307ccc611e421f8a9296a0579559feaaf9b833444c384bdf9d7",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0019",
+      "sha256": "a721670c3b887f3f16da6f9cd35b08afa36a85e69aa301dcaeb2bc2c6d34bb71",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0020",
+      "sha256": "39bc52149610669f08be44b9654788258d072bdeca5f4e2337563422c1551f73",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0021",
+      "sha256": "824f78a65d1d59aa23ecbda0332c61d7beb7de1ff39851e195f4004dd85bf3fb",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0022",
+      "sha256": "797763be99bf365a9640fb64fd43eddf5e260356071ac2c3dd12d64dce177720",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0023",
+      "sha256": "c49738d2447bba4eb6766283547a6905089fcfbc8707a57d5a2c651a2b539e7c",
+      "size_bytes": 750000
+    },
+    {
+      "name": "part-0024",
+      "sha256": "13d47ee4e8664646c93d91864f899e0010f5c9a0b9cc03bfd6fe8f360350c507",
+      "size_bytes": 344850
+    }
+  ]
+}
