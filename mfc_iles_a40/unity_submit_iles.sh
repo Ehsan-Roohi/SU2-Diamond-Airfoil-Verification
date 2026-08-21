@@ -45,20 +45,37 @@ if [[ -n "$AFTER_JOB" && "$AFTER_JOB" != none && ! "$AFTER_JOB" =~ ^[0-9]+(:[0-9
 fi
 
 # Do not rebuild the Euler checkout: MFC uses compile-time case optimization.
-# Make a separate source/build tree for the viscous configuration.
-if [[ ! -x "$MFC_ILES_ROOT/mfc.sh" ]]; then
+# Make a separate source/build tree for the viscous configuration.  Re-run
+# rsync when an interrupted launcher left only part of that tree behind.
+SOURCE_SYNC_MARKER="$MFC_ILES_ROOT/.unity-source-sync-$EXPECTED_MFC_COMMIT"
+if [[ ! -s "$SOURCE_SYNC_MARKER" || \
+      ! -x "$MFC_ILES_ROOT/mfc.sh" || \
+      ! -s "$MFC_ILES_ROOT/CMakeLists.txt" || \
+      ! -s "$MFC_ILES_ROOT/cmake/GPU.cmake" ]]; then
     command -v rsync >/dev/null || {
         echo "ERROR: rsync is required to prepare the isolated MFC build." >&2
         exit 2
     }
-    [[ ! -e "$MFC_ILES_ROOT" ]] || {
-        echo "ERROR: incomplete MFC_ILES_ROOT already exists: $MFC_ILES_ROOT" >&2
-        exit 2
-    }
+    echo "INFO: creating or repairing isolated MFC tree: $MFC_ILES_ROOT"
     mkdir -p "$MFC_ILES_ROOT"
     rsync -a --exclude=/build/ --exclude=/install/ --exclude=/run/ \
         "$MFC_SOURCE_ROOT/" "$MFC_ILES_ROOT/"
+    [[ -x "$MFC_ILES_ROOT/mfc.sh" && \
+       -s "$MFC_ILES_ROOT/CMakeLists.txt" && \
+       -s "$MFC_ILES_ROOT/cmake/GPU.cmake" ]] || {
+        echo "ERROR: isolated MFC tree is still incomplete after rsync: $MFC_ILES_ROOT" >&2
+        exit 2
+    }
+    printf '%s\n' "$EXPECTED_MFC_COMMIT" >"$SOURCE_SYNC_MARKER"
 fi
+
+[[ -x "$MFC_ILES_ROOT/mfc.sh" && \
+   -s "$MFC_ILES_ROOT/CMakeLists.txt" && \
+   -s "$MFC_ILES_ROOT/cmake/GPU.cmake" && \
+   "$(<"$SOURCE_SYNC_MARKER")" == "$EXPECTED_MFC_COMMIT" ]] || {
+    echo "ERROR: isolated MFC source-sync verification failed: $MFC_ILES_ROOT" >&2
+    exit 2
+}
 
 if git -C "$MFC_ILES_ROOT" rev-parse HEAD >/dev/null 2>&1; then
     actual_mfc_commit="$(git -C "$MFC_ILES_ROOT" rev-parse HEAD)"
