@@ -20,7 +20,10 @@ Physics and numerics:
 - no-slip immersed diamond (`patch_ib(1)%slip=F`);
 - RK3, WENO5/HLLC, WENO viscous-flux reconstruction, fourth-order derivatives;
 - an isolated MFC build tree so the existing compile-time-optimized Euler
-  executables and running jobs are not modified.
+  executables and running jobs are not modified;
+- a portable `x86-64-v3` compiler baseline (instead of MFC's Release
+  `-march=native`) so smoke and production binaries remain valid when Slurm
+  places them on different Unity CPU models.
 
 Run on a Unity login node:
 
@@ -39,3 +42,4 @@ GRID=f405 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Di
 When successful, the production directory contains `RUN_OK_MFC_ILES.txt` and
 `FIELD_INVENTORY.tsv`, in addition to all restart and Silo fields.  These are
 the inputs for matched vorticity/streamline and shock/Schlieren movies.
+
