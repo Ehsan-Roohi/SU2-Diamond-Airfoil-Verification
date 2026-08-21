@@ -18,7 +18,7 @@ SAVE_DT="${SAVE_DT:-0.05}"
 AFTER_JOB="${AFTER_JOB:-none}"
 EXPECTED_MFC_COMMIT=0c9a1d434410175ac483b8d71646455444e3b7eb
 MFC_SOURCE_ROOT="${MFC_SOURCE_ROOT:-$ROOT/third_party/MFC-0c9a1d43}"
-MFC_ILES_ROOT="${MFC_ILES_ROOT:-$ROOT/third_party/MFC-0c9a1d43-iles}"
+MFC_ILES_ROOT="${MFC_ILES_ROOT:-$ROOT/third_party/MFC-0c9a1d43-iles-portable-v3}"
 
 case "$GRID" in
     f180) PROD_NTASKS=24; PROD_MEMORY=64G;  PROD_WALLTIME=20:00:00 ;;
@@ -69,6 +69,50 @@ if git -C "$MFC_ILES_ROOT" rev-parse HEAD >/dev/null 2>&1; then
 else
     actual_mfc_commit=directory-name-pinned-0c9a1d43
 fi
+
+# MFC Release builds add -march=native.  A binary cached from one Unity CPU
+# family can then die with SIGILL on another family.  Pin the isolated build to
+# the common AVX2-era x86-64-v3 baseline and keep the Euler build untouched.
+PORTABLE_ARCH=x86-64-v3
+GPU_CMAKE="$MFC_ILES_ROOT/cmake/GPU.cmake"
+[[ -f "$GPU_CMAKE" ]] || { echo "ERROR: missing $GPU_CMAKE" >&2; exit 2; }
+python3 - "$GPU_CMAKE" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+replacements = (
+    ('CHECK_FORTRAN_COMPILER_FLAG("-march=native"',
+     'CHECK_FORTRAN_COMPILER_FLAG("-march=x86-64-v3"'),
+    ('COMPILE_LANGUAGE:Fortran>:-march=native',
+     'COMPILE_LANGUAGE:Fortran>:-march=x86-64-v3'),
+    ('CHECK_FORTRAN_COMPILER_FLAG("-mcpu=native"',
+     'CHECK_FORTRAN_COMPILER_FLAG("-mtune=generic"'),
+    ('COMPILE_LANGUAGE:Fortran>:-mcpu=native',
+     'COMPILE_LANGUAGE:Fortran>:-mtune=generic'),
+)
+for native, portable in replacements:
+    native_count = text.count(native)
+    portable_count = text.count(portable)
+    if native_count == 1 and portable_count == 0:
+        text = text.replace(native, portable)
+    elif native_count == 0 and portable_count == 1:
+        pass
+    else:
+        raise SystemExit(
+            f"ERROR: unexpected {path} state for {native}: "
+            f"native={native_count}, portable={portable_count}"
+        )
+for forbidden in (
+    "COMPILE_LANGUAGE:Fortran>:-march=native",
+    "COMPILE_LANGUAGE:Fortran>:-mcpu=native",
+):
+    if forbidden in text:
+        raise SystemExit("ERROR: native CPU tuning remains in the isolated MFC tree")
+path.write_text(text)
+PY
+PORTABLE_CMAKE_SHA256="$(sha256sum "$GPU_CMAKE" | awk '{print $1}')"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RUN_BASE="$DATA_ROOT/runs/mfc_iles_a40/${GRID}_t3_${STAMP}"
@@ -144,6 +188,39 @@ set -Eeuo pipefail
 : "${SAVE_DT:?}"
 : "${BUILD_MODE:?}"
 : "${EXPECTED_SNAPSHOTS:?}"
+: "${PORTABLE_ARCH:?}"
+: "${PORTABLE_CMAKE_SHA256:?}"
+
+GPU_CMAKE="$MFC_ILES_ROOT/cmake/GPU.cmake"
+[[ "$(sha256sum "$GPU_CMAKE" | awk '{print $1}')" == "$PORTABLE_CMAKE_SHA256" ]] || {
+    echo "ERROR: portable MFC compiler patch changed after submission." >&2
+    exit 5
+}
+grep -q -- "-march=$PORTABLE_ARCH" "$GPU_CMAKE" || {
+    echo "ERROR: portable compiler baseline is absent from $GPU_CMAKE." >&2
+    exit 5
+}
+if grep -Eq -- 'COMPILE_LANGUAGE:Fortran>:-march=native|COMPILE_LANGUAGE:Fortran>:-mcpu=native' "$GPU_CMAKE"; then
+    echo "ERROR: native CPU tuning must not be used across heterogeneous Unity nodes." >&2
+    exit 5
+fi
+
+cpu_flags="$(awk -F ': ' '/^flags/{print " " $2 " "; exit}' /proc/cpuinfo)"
+for feature in avx avx2 bmi1 bmi2 f16c fma movbe xsave; do
+    [[ "$cpu_flags" == *" $feature "* ]] || {
+        echo "ERROR: node $HOSTNAME lacks $feature required by $PORTABLE_ARCH." >&2
+        exit 5
+    }
+done
+if [[ "$cpu_flags" != *" lzcnt "* && "$cpu_flags" != *" abm "* ]]; then
+    echo "ERROR: node $HOSTNAME lacks LZCNT/ABM required by $PORTABLE_ARCH." >&2
+    exit 5
+fi
+{
+    echo "portable_arch=$PORTABLE_ARCH"
+    echo "hostname=$HOSTNAME"
+    lscpu
+} >"$CASE_DIR/cpu-${GRID}.txt"
 
 module purge
 module load openmpi/5.0.3
@@ -230,6 +307,8 @@ ENV_FILE="$RUN_BASE/submission.env"
     printf 'CASE_SHA256=%q\n' "$CASE_SHA256"
     printf 'STL_SHA256=%q\n' "$STL_SHA256"
     printf 'MFC_COMMIT=%q\n' "$actual_mfc_commit"
+    printf 'PORTABLE_ARCH=%q\n' "$PORTABLE_ARCH"
+    printf 'PORTABLE_CMAKE_SHA256=%q\n' "$PORTABLE_CMAKE_SHA256"
 } >"$ENV_FILE"
 
 dependency_args=()
@@ -243,7 +322,7 @@ SMOKE_JOB="$({
         --constraint='intel&x86_64_v4' "${dependency_args[@]}" \
         --job-name=mfc-iles-smoke \
         --output="$SMOKE_DIR/slurm-%j.out" --error="$SMOKE_DIR/slurm-%j.err" \
-        --export="ALL,CASE_DIR=$SMOKE_DIR,MFC_ILES_ROOT=$MFC_ILES_ROOT,GRID=smoke,FINAL_TIME=0.05,SAVE_DT=0.025,BUILD_MODE=scratch,EXPECTED_SNAPSHOTS=3" \
+        --export="ALL,CASE_DIR=$SMOKE_DIR,MFC_ILES_ROOT=$MFC_ILES_ROOT,GRID=smoke,FINAL_TIME=0.05,SAVE_DT=0.025,BUILD_MODE=scratch,EXPECTED_SNAPSHOTS=3,PORTABLE_ARCH=$PORTABLE_ARCH,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
         "$SBATCH_FILE"
 })"
 SMOKE_JOB="${SMOKE_JOB%%;*}"
@@ -255,7 +334,7 @@ PROD_JOB="$({
         --constraint='intel&x86_64_v4' --dependency="afterok:$SMOKE_JOB" \
         --job-name="mfc-iles-a40-$GRID" \
         --output="$CASE_DIR/slurm-%j.out" --error="$CASE_DIR/slurm-%j.err" \
-        --export="ALL,CASE_DIR=$CASE_DIR,MFC_ILES_ROOT=$MFC_ILES_ROOT,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,BUILD_MODE=nobuild,EXPECTED_SNAPSHOTS=61" \
+        --export="ALL,CASE_DIR=$CASE_DIR,MFC_ILES_ROOT=$MFC_ILES_ROOT,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,BUILD_MODE=nobuild,EXPECTED_SNAPSHOTS=61,PORTABLE_ARCH=$PORTABLE_ARCH,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
         "$SBATCH_FILE"
 })"
 PROD_JOB="${PROD_JOB%%;*}"
@@ -273,5 +352,6 @@ echo "CASE_DIR=$CASE_DIR"
 echo "ENV_FILE=$ENV_FILE"
 echo "SMOKE_JOB=$SMOKE_JOB"
 echo "PROD_JOB=$PROD_JOB"
+echo "COMPILE_BASELINE=$PORTABLE_ARCH (portable across constrained Unity nodes)"
 echo "FIELDS=61 permanent restart + Silo snapshots; no pruning"
 echo "STATUS: source '$ENV_FILE'; squeue -j \"\$JOBS\""
