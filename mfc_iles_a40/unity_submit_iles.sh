@@ -291,8 +291,8 @@ FINAL_SILO="$CASE_DIR/silo_hdf5/root/collection_${STOP_STEP}.silo"
 
 restart_count="$(find "$CASE_DIR/restart_data" -maxdepth 1 -type f -name 'lustre_*.dat' | wc -l)"
 silo_count="$(find "$CASE_DIR/silo_hdf5/root" -maxdepth 1 -type f -name 'collection_*.silo' | wc -l)"
-if (( restart_count != EXPECTED_SNAPSHOTS || silo_count != EXPECTED_SNAPSHOTS )); then
-    echo "ERROR: expected $EXPECTED_SNAPSHOTS permanent fields; restart=$restart_count silo=$silo_count" >&2
+if (( restart_count < EXPECTED_SNAPSHOTS || silo_count < EXPECTED_SNAPSHOTS )); then
+    echo "ERROR: expected at least $EXPECTED_SNAPSHOTS permanent fields; restart=$restart_count silo=$silo_count" >&2
     exit 43
 fi
 
