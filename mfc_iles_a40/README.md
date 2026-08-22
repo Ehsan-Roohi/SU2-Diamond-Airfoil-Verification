@@ -43,3 +43,29 @@ When successful, the production directory contains `RUN_OK_MFC_ILES.txt` and
 `FIELD_INVENTORY.tsv`, in addition to all restart and Silo fields.  These are
 the inputs for matched vorticity/streamline and shock/Schlieren movies.
 
+## Recovery after the f270 ICFL failure near t=0.4035
+
+The failed production still contains complete fields through `t=0.4`
+(`lustre_2160.dat`).  The recovery launcher never repeats `t=0..0.4`.  It:
+
+1. post-processes the nine saved original states through `t=0.4` to binary
+   fields, audits density/pressure/velocity/CFL health, and renders cropped
+   fixed-scale vorticity-shedding and shock-formation movies;
+2. re-indexes the `t=0.4` checkpoint on a four-times-smaller time step and
+   runs a short `t=0.4..0.5` stability gate;
+3. submits the `t=0.5..3` continuation with an `afterok` dependency, so it can
+   start only if both the source-field audit and the gate pass; and
+4. after a successful continuation, combines all available times into final
+   fixed-scale MP4s and a ZIP archive.  If a simulation stage fails, that
+   stage post-processes its last complete checkpoint before exiting.
+
+Run on a Unity login node:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-a40-iles-screen/mfc_iles_a40/unity_recover_iles.sh)
+```
+
+The source run defaults to
+`.../runs/mfc_iles_a40/f270_t3_20260821-100843/f270`.  Override it only when
+recovering an equivalent copied run by setting `SOURCE_CASE_DIR=/absolute/path`
+before the one-line command.
