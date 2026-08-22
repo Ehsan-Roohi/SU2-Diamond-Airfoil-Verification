@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # visualization-only failure, then resume the gated dt/4 calculation.
 
 REPOSITORY=Ehsan-Roohi/SU2-Diamond-Airfoil-Verification
-SOURCE_REF=agent/mfc-a40-iles-screen
+SOURCE_REF=3e1d3e3d8299c340e58f891ecdd1330a55689968
 RAW_BASE="https://raw.githubusercontent.com/$REPOSITORY/$SOURCE_REF/mfc_iles_a40"
 DATA_ROOT="${DATA_ROOT:-/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data}"
 RECOVERY_ROOT="$DATA_ROOT/runs/mfc_iles_a40_recovery"
