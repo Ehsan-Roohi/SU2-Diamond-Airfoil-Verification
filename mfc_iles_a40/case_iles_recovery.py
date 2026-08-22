@@ -96,6 +96,13 @@ case = {
     "m": grid["m"],
     "n": grid["n"],
     "p": 0,
+    # MFC 0c9a1d4's stage-local validator requires explicit bounds even
+    # when old_grid=T.  The pre-processor subsequently replaces them with
+    # the checkpoint grid, so these exact original bounds are safe.
+    "x_domain%beg": x_beg,
+    "x_domain%end": x_end,
+    "y_domain%beg": y_beg,
+    "y_domain%end": y_end,
     "dt": dt,
     "t_step_start": start_step,
     "t_step_stop": stop_step,
