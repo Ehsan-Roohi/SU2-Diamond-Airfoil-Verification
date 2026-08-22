@@ -1,0 +1,2 @@
+7fb255fcdeb1ff8b6ddeee8d8032578e7c0c1eee21d5dda063a65e36bb3767c3  dist/Chapter6A_SU2_Only_Companion.zip
+ccb1df07018074fbeedeffefe5bc9a7cc0da58e0c490a26ddd84806646704fe3  dist/Chapter6A_SU2_Only_Reproduced_Report.docx

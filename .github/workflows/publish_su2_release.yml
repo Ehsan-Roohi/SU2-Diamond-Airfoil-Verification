@@ -1,0 +1,75 @@
+name: Publish SU2-only report release
+
+on:
+  push:
+    branches:
+      - agent/su2-only-report-reproduction
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect prepared release payload
+        id: payload
+        shell: bash
+        run: |
+          if [[ -d .release_chunks/package && -d .release_chunks/report ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reconstruct and verify release assets
+        if: steps.payload.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          : > dist/Chapter6A_SU2_Only_Companion.zip
+          for part in .release_chunks/package/*.b64; do
+            base64 --decode "$part" >> dist/Chapter6A_SU2_Only_Companion.zip
+          done
+          : > dist/Chapter6A_SU2_Only_Reproduced_Report.docx
+          for part in .release_chunks/report/*.b64; do
+            base64 --decode "$part" >> dist/Chapter6A_SU2_Only_Reproduced_Report.docx
+          done
+          sha256sum -c .release_chunks/SHA256SUMS.txt
+          unzip -tq dist/Chapter6A_SU2_Only_Companion.zip
+          unzip -tq dist/Chapter6A_SU2_Only_Reproduced_Report.docx
+
+      - name: Test the reconstructed student package
+        if: steps.payload.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/su2-release-package
+          unzip -q dist/Chapter6A_SU2_Only_Companion.zip -d /tmp/su2-release-package
+          python3 -m unittest discover \
+            -s /tmp/su2-release-package/Chapter6A_SU2_Only_Companion/tests -v
+
+      - name: Create or update the prerelease
+        if: steps.payload.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v1.1.0-su2-only-report-reproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "SU2-only Appendix 6A report reproduction" \
+              --notes "Student package and revised Word appendix reproduced with SU2 v8.5.0. The five Euler cases at 0-4 degrees are qualified report-reproduction cases with the documented residual warning; this is not a grid-converged benchmark." \
+              --prerelease
+          fi
+          gh release upload "$RELEASE_TAG" \
+            dist/Chapter6A_SU2_Only_Companion.zip \
+            dist/Chapter6A_SU2_Only_Reproduced_Report.docx \
+            --clobber
