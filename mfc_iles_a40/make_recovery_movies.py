@@ -38,11 +38,54 @@ steps = discover_timesteps(str(case_dir), "binary")
 if not steps:
     raise SystemExit(f"ERROR: no binary post-process timesteps under {case_dir}")
 
-required = ("rho", "pres", "vel1", "vel2", "omega3", "schlieren", "ib_markers")
+required = ("rho", "pres", "vel1", "vel2", "omega3")
 audit_steps = steps[-2:] if len(steps) >= 2 else steps
 audit_rows: list[dict[str, float | int | bool]] = []
 audit_ok = True
 fluid_mask_global: np.ndarray | None = None
+fluid_mask_source: str | None = None
+
+AIRFOIL_X = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
+AIRFOIL_Y = np.array([0.0, 0.0702704174, 0.0, -0.0702704174, 0.0])
+AIRFOIL_HALF_HEIGHT = 0.0702704174
+
+
+def geometry_fluid_mask(x_cc: np.ndarray, y_cc: np.ndarray) -> np.ndarray:
+    """Mask the exact diamond plus a three-cell immersed-boundary guard band."""
+    dx = float(np.min(np.diff(x_cc)))
+    dy = float(np.min(np.diff(y_cc)))
+    pad = 3.0 * max(dx, dy)
+    xx = x_cc[:, None]
+    yy = y_cc[None, :]
+    chord_band = (xx >= -pad) & (xx <= 1.0 + pad)
+    clipped_x = np.clip(xx, 0.0, 1.0)
+    half_height = AIRFOIL_HALF_HEIGHT * (
+        1.0 - np.abs(2.0 * clipped_x - 1.0)
+    )
+    solid_or_guard = chord_band & (np.abs(yy) <= half_height + pad)
+    return ~solid_or_guard
+
+
+def resolve_fluid_mask(assembled) -> tuple[np.ndarray, str]:
+    if "ib_markers" in assembled.variables:
+        return assembled.variables["ib_markers"] == 0, "ib_markers"
+    return (
+        geometry_fluid_mask(assembled.x_cc, assembled.y_cc),
+        "diamond_geometry_plus_three_cell_guard",
+    )
+
+
+def movie_field(assembled, variable: str) -> np.ndarray:
+    if variable == "omega3":
+        return assembled.variables["omega3"]
+    if variable == "schlieren":
+        rho = assembled.variables["rho"]
+        dx = float(np.mean(np.diff(assembled.x_cc)))
+        dy = float(np.mean(np.diff(assembled.y_cc)))
+        drho_dx, drho_dy = np.gradient(rho, dx, dy, edge_order=2)
+        return np.hypot(drho_dx, drho_dy)
+    raise KeyError(variable)
+
 
 for step in audit_steps:
     assembled = assemble(str(case_dir), step, fmt="binary")
@@ -53,14 +96,17 @@ for step in audit_steps:
     pres = assembled.variables["pres"]
     vel1 = assembled.variables["vel1"]
     vel2 = assembled.variables["vel2"]
-    fluid = assembled.variables["ib_markers"] == 0
+    fluid, this_mask_source = resolve_fluid_mask(assembled)
     if not fluid.any():
         raise SystemExit(f"ERROR: step {step} contains no fluid cells")
     if fluid_mask_global is None:
         fluid_mask_global = fluid.copy()
+        fluid_mask_source = this_mask_source
     elif not np.array_equal(fluid_mask_global, fluid):
-        raise SystemExit("ERROR: fixed-airfoil immersed-boundary mask changed between audit steps")
-    finite = all(np.isfinite(assembled.variables[name][fluid]).all() for name in required[:-1])
+        raise SystemExit("ERROR: fixed-airfoil fluid mask changed between audit steps")
+    elif fluid_mask_source != this_mask_source:
+        raise SystemExit("ERROR: fluid-mask source changed between audit steps")
+    finite = all(np.isfinite(assembled.variables[name][fluid]).all() for name in required)
     positive = bool(np.nanmin(rho[fluid]) > 0.0 and np.nanmin(pres[fluid]) > 0.0)
     dx = float(np.min(np.diff(assembled.x_cc)))
     dy = float(np.min(np.diff(assembled.y_cc)))
@@ -97,6 +143,8 @@ audit_path.write_text(
             "dt": args.dt,
             "available_steps": steps,
             "audit_steps": audit_rows,
+            "fluid_mask_source": fluid_mask_source,
+            "schlieren_source": "derived_density_gradient_magnitude",
             "pass": audit_ok,
         },
         indent=2,
@@ -142,12 +190,14 @@ scales: dict[str, tuple[float, float]] = {}
 for variable in ("omega3", "schlieren"):
     samples: list[np.ndarray] = []
     for step in sample_steps:
-        assembled = assemble(str(case_dir), step, fmt="binary", var=variable)
-        _, _, cropped = crop_and_stride(assembled, assembled.variables[variable])
+        source_variable = variable if variable == "omega3" else "rho"
+        assembled = assemble(str(case_dir), step, fmt="binary", var=source_variable)
+        field = movie_field(assembled, variable)
+        _, _, cropped = crop_and_stride(assembled, field)
         finite = cropped[np.isfinite(cropped)]
         if finite.size:
             samples.append(finite[:: max(1, finite.size // 250_000)])
-        del assembled, cropped, finite
+        del assembled, field, cropped, finite
         gc.collect()
     if not samples:
         raise SystemExit(f"ERROR: no finite {variable} samples")
@@ -165,11 +215,15 @@ for variable in ("omega3", "schlieren"):
     del values, samples
     gc.collect()
 
-airfoil_x = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
-airfoil_y = np.array([0.0, 0.0702704174, 0.0, -0.0702704174, 0.0])
+airfoil_x = AIRFOIL_X
+airfoil_y = AIRFOIL_Y
 movie_specs = {
     "omega3": ("RdBu_r", r"$\omega_z c/U_\infty$", "vorticity-shedding"),
-    "schlieren": ("gray", "numerical Schlieren", "shock-formation"),
+    "schlieren": (
+        "gray",
+        r"$|\nabla \rho|\,c/\rho_\infty$",
+        "shock-formation",
+    ),
 }
 movie_paths: dict[str, str] = {}
 
@@ -185,8 +239,12 @@ for variable, (cmap, colorbar_label, suffix) in movie_specs.items():
         ffmpeg_log_level="error",
     ) as writer:
         for frame_index, step in enumerate(steps):
-            assembled = assemble(str(case_dir), step, fmt="binary", var=variable)
-            x, y, data = crop_and_stride(assembled, assembled.variables[variable])
+            source_variable = variable if variable == "omega3" else "rho"
+            assembled = assemble(
+                str(case_dir), step, fmt="binary", var=source_variable
+            )
+            field = movie_field(assembled, variable)
+            x, y, data = crop_and_stride(assembled, field)
             fig, ax = plt.subplots(figsize=(10.0, 8.0), dpi=120)
             pcm = ax.pcolormesh(
                 x,
@@ -219,7 +277,7 @@ for variable, (cmap, colorbar_label, suffix) in movie_specs.items():
                 keyframe = product_dir / f"{args.label}-{suffix}-step-{step}.png"
                 fig.savefig(keyframe, dpi=160)
             plt.close(fig)
-            del assembled, x, y, data, rgba
+            del assembled, field, x, y, data, rgba
             gc.collect()
     movie_paths[variable] = str(movie_path)
 
@@ -234,6 +292,11 @@ manifest = {
     "fps": args.fps,
     "movies": movie_paths,
     "audit": str(audit_path),
+    "fluid_mask_source": fluid_mask_source,
+    "field_sources": {
+        "omega3": "MFC post_process omega3",
+        "schlieren": "derived magnitude of density gradient",
+    },
 }
 manifest_path = product_dir / f"{args.label}-movie-manifest.json"
 manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
