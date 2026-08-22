@@ -99,7 +99,10 @@ for destination in "$GATE_DIR" "$PROD_DIR" "$COMBINED_DIR"; do
     [[ "$(sha256sum "$destination/Diamond_Airfoil_2D_MFC.stl" | awk '{print $1}')" == "$STL_SHA256" ]]
 done
 
-# Local preflight verifies both clocks and the documented MFC restart form.
+# Local preflight verifies the no-argument profile used by `mfc.sh validate`,
+# both clocks, and the documented MFC restart form.
+python3 "$PARTIAL_DIR/case.py" | \
+    python3 -c 'import json,sys; c=json.load(sys.stdin); assert (c["t_step_start"],c["t_step_stop"],c["t_step_save"],c["format"])==(0,2160,270,2)'
 python3 "$PARTIAL_DIR/case.py" --mode initial --grid f270 --start-time 0 \
     --final-time 0.4 --save-dt 0.05 --dt-factor 1 --format binary | \
     python3 -c 'import json,sys; c=json.load(sys.stdin); assert (c["t_step_start"],c["t_step_stop"],c["t_step_save"],c["format"])==(0,2160,270,2)'
