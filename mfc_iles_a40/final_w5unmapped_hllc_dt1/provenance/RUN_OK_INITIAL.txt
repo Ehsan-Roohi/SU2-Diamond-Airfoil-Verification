@@ -1,0 +1,6 @@
+status=PASS
+stage=initial
+start_time=0
+stop_time=3.0
+latest_step=16200
+products=/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data/runs/mfc_iles_a40_recovery/f270_dt4_20260822-194723/final_t000_t3000_w5unmapped_hllc_dt1/mfc-iles-a40-initial-movie-products.zip
