@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+trap 'rc=$?; trap - ERR; echo "ERROR: article submitter stopped at line $LINENO (exit $rc)." >&2; exit "$rc"' ERR
 
 PROJECT_ROOT=${PROJECT_ROOT:-/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data}
 REPO_ROOT=${REPO_ROOT:-/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification}
 MFC_ROOT=${MFC_ROOT:-$REPO_ROOT/third_party/MFC-0c9a1d43-iles-portable-v3}
 RUN_ROOT=${RUN_ROOT:-$PROJECT_ROOT/runs/mfc_iles_a40_fresh_hll_production}
-CASE_DIR=${CASE_DIR:-$(find "$RUN_ROOT" -mindepth 1 -maxdepth 1 -type d -name 'f270_t000_t0600_w5unmapped_hll_dt1_*' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)}
+CASE_DIR=${CASE_DIR:-}
 SCRIPT=$REPO_ROOT/mfc_iles_a40/hll_production_analysis/analyze_mfc_hll_article.py
 SU2_ROOT=${SU2_ROOT:-$PROJECT_ROOT/runs/urans_alpha40/medium_halfdt}
 SU2_CONFIG=${SU2_CONFIG:-}
@@ -14,6 +15,20 @@ ANALYSIS_START=${ANALYSIS_START:-3.0}
 MEMORY=${MEMORY:-32G}
 WALLTIME=${WALLTIME:-06:00:00}
 CONSTRAINT=${CONSTRAINT:-intel&x86_64_v4}
+
+# Consume the complete sorted stream.  Using ``head -n1`` here makes the
+# upstream ``sort`` receive SIGPIPE when more than one candidate exists;
+# under ``set -o pipefail`` that aborts the submitter before ``sbatch``.
+if [[ -z "$CASE_DIR" && -d "$RUN_ROOT" ]]; then
+    mapfile -t case_candidates < <(
+        find "$RUN_ROOT" -mindepth 1 -maxdepth 1 -type d \
+            -name 'f270_t000_t0600_w5unmapped_hll_dt1_*' \
+            -printf '%T@ %p\n' 2>/dev/null | sort -nr
+    )
+    if ((${#case_candidates[@]})); then
+        CASE_DIR=${case_candidates[0]#* }
+    fi
+fi
 
 [[ -n "$CASE_DIR" && -d "$CASE_DIR" ]] || { echo "ERROR: HLL production case was not found." >&2; exit 2; }
 [[ -f "$CASE_DIR/RUN_OK_INITIAL.txt" ]] || { echo "ERROR: successful-run marker is missing." >&2; exit 2; }
@@ -51,7 +66,13 @@ print("HLL_ARTICLE_PREFLIGHT=PASS")
 PY
 
 if [[ -z "$SU2_CONFIG" && -d "$SU2_ROOT" ]]; then
-    SU2_CONFIG=$(find "$SU2_ROOT" -type f -name '*.cfg' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)
+    mapfile -t su2_config_candidates < <(
+        find "$SU2_ROOT" -type f -name '*.cfg' -printf '%T@ %p\n' \
+            2>/dev/null | sort -nr
+    )
+    if ((${#su2_config_candidates[@]})); then
+        SU2_CONFIG=${su2_config_candidates[0]#* }
+    fi
 fi
 
 STAMP=$(date +%Y%m%d-%H%M%S)
