@@ -1147,19 +1147,33 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.su2_history is not None:
         if args.su2_config is None:
             raise RuntimeError("--su2-config is required with --su2-history")
-        comparison_rows.append(
-            load_su2_history(
+        try:
+            su2_row = load_su2_history(
                 args.su2_history.expanduser().resolve(),
                 args.su2_config.expanduser().resolve(),
                 ref.alpha_deg,
                 output,
             )
-        )
+        except (OSError, ValueError, RuntimeError) as exc:
+            su2_row = {
+                "method": "SU2 URANS-SST",
+                "status": "IMPORT_FAILED_OR_INCOMPLETE",
+                "alpha_deg": ref.alpha_deg,
+                "notes": str(exc),
+            }
+        comparison_rows.append(su2_row)
         supplied_methods.add("su2")
     if args.nektar_summary is not None:
-        imported_nektar = load_comparison(
-            args.nektar_summary.expanduser().resolve(), ref.alpha_deg
-        )
+        try:
+            imported_nektar = load_comparison(
+                args.nektar_summary.expanduser().resolve(), ref.alpha_deg
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            imported_nektar = {
+                "status": "IMPORT_FAILED_OR_INCOMPLETE",
+                "alpha_deg": ref.alpha_deg,
+                "notes": str(exc),
+            }
         imported_nektar["method"] = "Nektar++"
         comparison_rows.append(imported_nektar)
         supplied_methods.add("nektar")
