@@ -359,13 +359,23 @@ def bow_shock_metric(
     if finite_strength.size < 12:
         return {
             "status": "NOT_DETECTED",
+            "reason": "INSUFFICIENT_FINITE_RIDGE_SAMPLES",
+            "n": n_values,
+            "s": ridge_s,
+            "strength": ridge_strength,
+        }
+    peak_strength = float(np.max(finite_strength))
+    if not math.isfinite(peak_strength) or peak_strength <= np.finfo(float).eps:
+        return {
+            "status": "NOT_DETECTED",
+            "reason": "NO_RESOLVED_DENSITY_GRADIENT",
             "n": n_values,
             "s": ridge_s,
             "strength": ridge_strength,
         }
     floor = max(
         float(np.percentile(finite_strength, 30.0)),
-        0.04 * float(np.max(finite_strength)),
+        0.04 * peak_strength,
     )
     accepted = (
         np.isfinite(ridge_s)
@@ -376,13 +386,24 @@ def bow_shock_metric(
     if np.count_nonzero(accepted) < 10:
         return {
             "status": "NOT_DETECTED",
+            "reason": "INSUFFICIENT_STRONG_RIDGE_SAMPLES",
             "n": n_values,
             "s": ridge_s,
             "strength": ridge_strength,
             "accepted": accepted,
         }
 
-    weights = ridge_strength[accepted]
+    weights = np.maximum(ridge_strength[accepted], 0.0)
+    weight_sum = float(np.sum(weights))
+    if not math.isfinite(weight_sum) or weight_sum <= np.finfo(float).tiny:
+        return {
+            "status": "NOT_DETECTED",
+            "reason": "ZERO_FIT_WEIGHT",
+            "n": n_values,
+            "s": ridge_s,
+            "strength": ridge_strength,
+            "accepted": accepted,
+        }
     design = np.column_stack(
         [np.ones(np.count_nonzero(accepted)), n_values[accepted]]
     )
@@ -1292,6 +1313,15 @@ def self_test(output: Path) -> None:
         raise RuntimeError("Synthetic shock was not detected")
     if not math.isclose(float(shock["stand_off_over_c"]), 0.24, abs_tol=0.025):
         raise RuntimeError(f"Synthetic shock stand-off failed: {shock['stand_off_over_c']}")
+    uniform_shock = bow_shock_metric(
+        x,
+        y,
+        np.zeros_like(rho),
+        np.ones_like(rho, dtype=bool),
+        ref.alpha_deg,
+    )
+    if uniform_shock["status"] != "NOT_DETECTED":
+        raise RuntimeError("Uniform-field shock rejection test failed")
     time = np.arange(0.0, 12.0, 0.05)
     target_frequency = 1.25
     signal = 0.2 * np.sin(2.0 * np.pi * target_frequency * time)
@@ -1304,6 +1334,7 @@ def self_test(output: Path) -> None:
         "surface_force": surface_force,
         "shock_standoff": shock["stand_off_over_c"],
         "shock_angle": shock["shock_angle_to_freestream_deg"],
+        "uniform_field_shock_status": uniform_shock["status"],
         "frequency": spectrum["dominant_frequency"],
         "Strouhal": spectrum["strouhal"],
     }
