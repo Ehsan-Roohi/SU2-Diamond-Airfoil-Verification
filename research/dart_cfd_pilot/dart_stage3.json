@@ -2,6 +2,10 @@
   "schema_version": 1,
   "purpose": "Stage-3 temporal vortex tracking gate for the MFC viscous vorticity movie. This is a diagnostic raster proxy, not raw-field physical validation.",
   "source_video": "/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data/runs/mfc_iles_a40_recovery/f270_dt4_20260822-194723/final_t000_t3000_w5unmapped_hllc_dt1/movie_products/mfc-iles-a40-initial-vorticity-shedding.mp4",
+  "source_archive_basename": "mfc-iles-a40-initial-movie-products.zip",
+  "source_search_roots": [
+    "/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data"
+  ],
   "case_id": "viscous_mfc_alpha40_vorticity_t000_t3000",
   "prompts": [
     "vortex",

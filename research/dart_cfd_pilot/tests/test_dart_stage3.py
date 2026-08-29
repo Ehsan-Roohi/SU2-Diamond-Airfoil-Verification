@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import subprocess
+import zipfile
 from pathlib import Path
 
 
@@ -41,6 +42,31 @@ def test_stage3_iou_and_prompt_consensus():
     assert clusters[1]["prompt_support"] == 1
 
 
+def test_stage3_resolves_moved_video_and_archive(tmp_path):
+    runner = load_runner()
+    configured = tmp_path / "old" / "vorticity-shedding.mp4"
+    moved = tmp_path / "data" / "new" / configured.name
+    moved.parent.mkdir(parents=True)
+    moved.write_bytes(b"video")
+    resolved, method = runner.resolve_source_video(
+        configured, search_roots=[tmp_path / "data"]
+    )
+    assert resolved == moved.resolve()
+    assert method == "discovered_video"
+
+    moved.unlink()
+    archive = tmp_path / "data" / "movie-products.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr(f"movie_products/{configured.name}", b"archived-video")
+    resolved, method = runner.resolve_source_video(
+        configured,
+        explicit_archive=archive,
+        cache_dir=tmp_path / "cache",
+    )
+    assert resolved.read_bytes() == b"archived-video"
+    assert method.startswith("extracted_archive:")
+
+
 def test_stage3_scripts_parse_and_keep_results_shallow():
     compile(RUNNER.read_text(), str(RUNNER), "exec")
     submit = ROOT / "scripts" / "submit_unity_dart_stage3.sh"
@@ -52,4 +78,6 @@ def test_stage3_scripts_parse_and_keep_results_shallow():
     assert 'readonly OUTPUT_REL="results/${RUN_ID}"' in script
     assert 'results/${RUN_ID}.tar.gz' in script
     assert 'sha256sum "${ARCHIVE}" > "${CHECKSUM}"' in script
+    assert "DART_STAGE3_VIDEO" in script
+    assert "DART_STAGE3_ARCHIVE" in script
     assert "results/inference" not in script

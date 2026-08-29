@@ -29,6 +29,7 @@ readonly OUTPUT_REL="results/${RUN_ID}"
 readonly OUTPUT_DIR="${PROJECT_ROOT}/research/dart_cfd_pilot/${OUTPUT_REL}"
 readonly ARCHIVE="${PROJECT_ROOT}/research/dart_cfd_pilot/results/${RUN_ID}.tar.gz"
 readonly CHECKSUM="${ARCHIVE}.sha256.txt"
+readonly SOURCE_CACHE="${WORK_ROOT}/stage3-inputs"
 
 if [[ ! -f "${PROJECT_ROOT}/research/dart_cfd_pilot/dart_stage3.json" ]]; then
     echo "ERROR: Stage-3 configuration not found under PROJECT_ROOT=${PROJECT_ROOT}" >&2
@@ -77,9 +78,22 @@ python -m pytest -q research/dart_cfd_pilot/tests
 } > "${OUTPUT_DIR}/stage3_environment.txt"
 
 set +e
+source_args=(
+    --source-cache-dir "${SOURCE_CACHE}"
+)
+if [[ -n "${DART_STAGE3_VIDEO:-}" ]]; then
+    source_args+=(--source-video "${DART_STAGE3_VIDEO}")
+fi
+if [[ -n "${DART_STAGE3_ARCHIVE:-}" ]]; then
+    source_args+=(--source-archive "${DART_STAGE3_ARCHIVE}")
+fi
+if [[ -n "${DART_STAGE3_SEARCH_ROOT:-}" ]]; then
+    source_args+=(--source-search-root "${DART_STAGE3_SEARCH_ROOT}")
+fi
 python research/dart_cfd_pilot/scripts/run_dart_stage3_tracking.py \
     --dart-repo "${DART_REPO}" \
     --checkpoint "${CHECKPOINT}" \
+    "${source_args[@]}" \
     --device cuda \
     --imgsz 1008 \
     --output-dir "${OUTPUT_REL}"
