@@ -85,3 +85,10 @@ def test_runner_records_all_cases_with_a_fake_dart_cli(tmp_path):
     assert report["status"] == "completed"
     assert report["detection_only"] is False
     assert len(report["runs"]) == len(config["cases"])
+
+
+def test_unity_submit_uses_slurm_submit_directory():
+    script = (ROOT / "scripts" / "submit_unity_dart_pilot.sh").read_text()
+    assert "SLURM_SUBMIT_DIR" in script
+    assert "DART_PROJECT_ROOT" in script
+    assert 'readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"' not in script
