@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "purpose": "Generate independently derived vortex-center references from raw MFC velocity and vorticity fields, then validate DART tracks against them.",
+  "case_id": "viscous_mfc_alpha40_vorticity_t000_t3000",
+  "step_start": 0,
+  "step_stop": 16200,
+  "step_stride": 270,
+  "snapshot_dt": 0.05,
+  "analysis_xlim": [-1.25, 4.75],
+  "analysis_ylim": [-1.25, 4.25],
+  "lambda_ci_quantile": 0.99,
+  "absolute_vorticity_quantile": 0.99,
+  "minimum_core_separation": 0.08,
+  "maximum_cores_per_frame": 128,
+  "maximum_reference_displacement": 0.25,
+  "maximum_track_gap_frames": 1,
+  "minimum_vorticity_correlation": 0.9,
+  "minimum_consistency_frames": 50,
+  "minimum_reference_rows": 10,
+  "sensitivity_quantiles": [0.985, 0.99, 0.995]
+}
