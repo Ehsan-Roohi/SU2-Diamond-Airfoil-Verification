@@ -1,0 +1,62 @@
+{
+  "status": "blocked_external_dependency",
+  "date_utc": "2026-08-29",
+  "dart_repository": "https://github.com/mkturkcan/DART",
+  "dart_commit": "b4f954319ad4c26ab1372d130719eb2f4ddd4ea6",
+  "host": {
+    "python": "3.12.13",
+    "torch": "2.7.1+cpu",
+    "torchvision": "0.22.1+cpu",
+    "cuda_available": false
+  },
+  "checks": [
+    {
+      "name": "repository_clone",
+      "status": "pass"
+    },
+    {
+      "name": "editable_install",
+      "status": "pass_with_manual_dependency",
+      "note": "Linux import required manual installation of triton==3.3.1; it is not declared for Linux in DART pyproject.toml at the recorded commit."
+    },
+    {
+      "name": "cli_import",
+      "status": "pass_after_manual_dependency"
+    },
+    {
+      "name": "cpu_model_construction",
+      "status": "blocked_upstream_cpu_path",
+      "note": "Two constructor paths allocated tensors explicitly on CUDA despite --device cpu. Temporary local diagnostic edits replaced those allocations with a CUDA-if-available fallback."
+    },
+    {
+      "name": "sam3_checkpoint_access",
+      "status": "blocked",
+      "http_status": 401,
+      "note": "facebook/sam3 is gated and no authenticated checkpoint was available."
+    },
+    {
+      "name": "cfd_inference",
+      "status": "not_run",
+      "note": "No boxes, masks, confidence scores, or timing claims were generated."
+    }
+  ],
+  "attempted_command": [
+    "python",
+    "demo_multiclass.py",
+    "--image",
+    "mfc_a40_separation_diagnosis.png",
+    "--classes",
+    "diamond airfoil",
+    "shock wave",
+    "separation bubble",
+    "wake",
+    "--device",
+    "cpu",
+    "--imgsz",
+    "504",
+    "--confidence",
+    "0.15",
+    "--detection-only"
+  ],
+  "next_gate": "Provide an authorized local sam3.pt checkpoint and run on a CUDA host, then visually review false positives against manually defined CFD structures."
+}

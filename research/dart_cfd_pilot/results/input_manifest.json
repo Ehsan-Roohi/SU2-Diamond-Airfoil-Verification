@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "path": "inputs/euler_mfc/euler_mfc_alpha40_mach.png",
+      "sha256": "644c58e78572064e02db6c0aed500e707b604928daa373cf3dd1c5519eab76e5",
+      "width": 1150,
+      "height": 820,
+      "bytes": 251821
+    },
+    {
+      "path": "inputs/euler_mfc/euler_mfc_alpha40_schlieren.png",
+      "sha256": "7586432fc514cc03eb0bf069bded42d0510c1035596facf25f7326fd44566813",
+      "width": 1060,
+      "height": 840,
+      "bytes": 170331
+    },
+    {
+      "path": "inputs/euler_mfc/mfc_a40_grid_vortex_comparison.png",
+      "sha256": "5e0d8f80a31f91fa428f7ed060375ec3d9d9751d74731ac1d046c98af5cad99d",
+      "width": 3172,
+      "height": 3120,
+      "bytes": 2088432
+    },
+    {
+      "path": "inputs/euler_mfc/mfc_a40_separation_diagnosis.png",
+      "sha256": "bd0b1b7696aa5e4c6915449953a5c9c9a653e07d68ece4034ca57d29eea3d70a",
+      "width": 3622,
+      "height": 2597,
+      "bytes": 3070037
+    },
+    {
+      "path": "inputs/euler_mfc/mfc_a40_vf_final_fields.png",
+      "sha256": "953f7f28523f5cab5f6ed8c1079563ed98fb191145461ed260e262d6be92214c",
+      "width": 2904,
+      "height": 1803,
+      "bytes": 913948
+    },
+    {
+      "path": "inputs/viscous_mfc/mfc_viscous_alpha40_schlieren_t3.png",
+      "sha256": "098baca5008bd0871d8cfa8778d836bbdd616fa8b125c80ed56c392219b3d759",
+      "width": 1600,
+      "height": 1280,
+      "bytes": 357729
+    },
+    {
+      "path": "inputs/viscous_mfc/mfc_viscous_alpha40_vorticity_t3.png",
+      "sha256": "9d98cc162ae6e118f4a039a47399897b0cb8ac9b7d79495b7a20ab7eb2b59fc2",
+      "width": 1600,
+      "height": 1280,
+      "bytes": 547244
+    },
+    {
+      "path": "inputs/viscous_su2_sst/su2_sst_alpha40_fields.png",
+      "sha256": "38b67bfdf8c8f8e38cae44cb3320ba18ba418816a8760f9825ed56fefdbb6f7a",
+      "width": 2338,
+      "height": 1640,
+      "bytes": 424858
+    },
+    {
+      "path": "inputs/viscous_su2_sst/su2_sst_alpha40_mach.png",
+      "sha256": "1f81a3b77986d9f57750290719233215078a7ce7c334dd989625fefba9dc193d",
+      "width": 1608,
+      "height": 1280,
+      "bytes": 198947
+    }
+  ]
+}

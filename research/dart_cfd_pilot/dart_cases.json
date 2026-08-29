@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "comparison_scope": "Mach-3, alpha-40 MFC Euler/slip-wall and MFC viscous/no-model diagnostic images, plus an SU2/SST control; not a solver-validation comparison",
+  "prompts": [
+    "diamond airfoil",
+    "shock wave",
+    "separation bubble",
+    "wake"
+  ],
+  "cases": [
+    {
+      "id": "euler_mfc_alpha40_mach",
+      "image": "inputs/euler_mfc/euler_mfc_alpha40_mach.png",
+      "solver": "MFC",
+      "model": "Euler, inviscid slip-wall immersed boundary",
+      "mach": 3.0,
+      "alpha_deg": 40.0,
+      "time": 13.5,
+      "field": "Mach",
+      "status": "diagnostic",
+      "prompts": ["diamond airfoil", "shock wave", "separation bubble", "wake"]
+    },
+    {
+      "id": "euler_mfc_alpha40_schlieren",
+      "image": "inputs/euler_mfc/euler_mfc_alpha40_schlieren.png",
+      "solver": "MFC",
+      "model": "Euler, inviscid slip-wall immersed boundary",
+      "mach": 3.0,
+      "alpha_deg": 40.0,
+      "time": 13.5,
+      "field": "numerical schlieren",
+      "status": "diagnostic",
+      "prompts": ["diamond airfoil", "shock wave", "separation bubble", "wake"]
+    },
+    {
+      "id": "viscous_mfc_alpha40_schlieren_t3",
+      "image": "inputs/viscous_mfc/mfc_viscous_alpha40_schlieren_t3.png",
+      "solver": "MFC commit 0c9a1d434410175ac483b8d71646455444e3b7eb",
+      "model": "viscous/no-model, two-dimensional ILES-like screening calculation, no-slip immersed boundary",
+      "mach": 3.0,
+      "alpha_deg": 40.0,
+      "reynolds_chord": 1000000.0,
+      "time": 3.0,
+      "field": "density-gradient magnitude",
+      "grid": "f270, 2969 x 2699 Cartesian cells",
+      "status": "completed_field_audit_pass",
+      "prompts": ["diamond airfoil", "shock wave", "shear layer", "wake"]
+    },
+    {
+      "id": "viscous_mfc_alpha40_vorticity_t3",
+      "image": "inputs/viscous_mfc/mfc_viscous_alpha40_vorticity_t3.png",
+      "solver": "MFC commit 0c9a1d434410175ac483b8d71646455444e3b7eb",
+      "model": "viscous/no-model, two-dimensional ILES-like screening calculation, no-slip immersed boundary",
+      "mach": 3.0,
+      "alpha_deg": 40.0,
+      "reynolds_chord": 1000000.0,
+      "time": 3.0,
+      "field": "out-of-plane vorticity",
+      "grid": "f270, 2969 x 2699 Cartesian cells",
+      "status": "completed_field_audit_pass",
+      "prompts": ["diamond airfoil", "vortex", "shear layer", "wake"]
+    },
+    {
+      "id": "viscous_su2_sst_alpha40_mach",
+      "image": "inputs/viscous_su2_sst/su2_sst_alpha40_mach.png",
+      "solver": "SU2 v8.5.0",
+      "model": "compressible RANS, k-omega SST-1994m",
+      "mach": 3.0,
+      "alpha_deg": 40.0,
+      "reynolds_chord": 1000000.0,
+      "field": "Mach",
+      "status": "qualified_stable_load_not_strictly_converged",
+      "role": "secondary_cross_solver_control",
+      "prompts": ["diamond airfoil", "shock wave", "separated flow", "wake"]
+    }
+  ]
+}
