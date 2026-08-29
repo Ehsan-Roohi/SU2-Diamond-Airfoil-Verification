@@ -18,12 +18,115 @@ import argparse
 import csv
 import json
 import math
+import os
+import shutil
 import subprocess
 import sys
 import time
+import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def resolve_source_video(
+    configured_video: Path,
+    *,
+    explicit_video: Path | None = None,
+    explicit_archive: Path | None = None,
+    search_roots: list[Path] | None = None,
+    cache_dir: Path | None = None,
+    archive_basename: str | None = None,
+) -> tuple[Path, str]:
+    """Resolve a moved video or extract it from its recorded products archive.
+
+    The resolver never chooses between multiple matches. Ambiguity must be
+    removed with ``--source-video`` or ``--source-archive`` so that a different
+    CFD case cannot be selected silently.
+    """
+    expected_basename = configured_video.name
+    if explicit_video is not None:
+        if not explicit_video.is_file():
+            raise FileNotFoundError(f"explicit Stage-3 video not found: {explicit_video}")
+        return explicit_video.resolve(), "explicit_video"
+    roots = [root.resolve() for root in (search_roots or []) if root.is_dir()]
+    if explicit_archive is None:
+        if configured_video.is_file():
+            return configured_video.resolve(), "configured_video"
+        video_matches = sorted(
+            {
+                candidate.resolve()
+                for root in roots
+                for candidate in root.rglob(expected_basename)
+                if candidate.is_file()
+            }
+        )
+        if len(video_matches) == 1:
+            return video_matches[0], "discovered_video"
+        if len(video_matches) > 1:
+            rendered = "\n".join(f"  - {path}" for path in video_matches)
+            raise ValueError(
+                "multiple Stage-3 videos matched; set --source-video explicitly:\n"
+                + rendered
+            )
+
+    archives: list[Path] = []
+    if explicit_archive is not None:
+        if not explicit_archive.is_file():
+            raise FileNotFoundError(
+                f"explicit Stage-3 products archive not found: {explicit_archive}"
+            )
+        archives = [explicit_archive.resolve()]
+    elif archive_basename:
+        archives = sorted(
+            {
+                candidate.resolve()
+                for root in roots
+                for candidate in root.rglob(archive_basename)
+                if candidate.is_file()
+            }
+        )
+
+    archive_members: list[tuple[Path, str]] = []
+    for archive in archives:
+        try:
+            with zipfile.ZipFile(archive) as bundle:
+                archive_members.extend(
+                    (archive, member)
+                    for member in bundle.namelist()
+                    if Path(member).name == expected_basename and not member.endswith("/")
+                )
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"invalid Stage-3 products archive: {archive}") from exc
+
+    if len(archive_members) > 1:
+        rendered = "\n".join(
+            f"  - {archive}::{member}" for archive, member in archive_members
+        )
+        raise ValueError(
+            "multiple archived Stage-3 videos matched; set --source-archive explicitly:\n"
+            + rendered
+        )
+    if len(archive_members) == 1:
+        archive, member = archive_members[0]
+        destination_dir = (cache_dir or Path.cwd() / "stage3-input-cache").resolve()
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        destination = destination_dir / expected_basename
+        temporary = destination.with_suffix(destination.suffix + ".part")
+        with zipfile.ZipFile(archive) as bundle, bundle.open(member) as source, temporary.open(
+            "wb"
+        ) as target:
+            shutil.copyfileobj(source, target)
+        os.replace(temporary, destination)
+        if not destination.is_file() or destination.stat().st_size == 0:
+            raise RuntimeError(f"extracted Stage-3 video is empty: {destination}")
+        return destination, f"extracted_archive:{archive}::{member}"
+
+    searched = ", ".join(str(root) for root in roots) or "no existing search root"
+    raise FileNotFoundError(
+        f"Stage-3 source video {expected_basename!r} was not found. "
+        f"Searched: {searched}. Provide --source-video or --source-archive."
+    )
 
 
 def git_head(repo: Path) -> str | None:
@@ -270,6 +373,10 @@ def main() -> int:
     parser.add_argument("--dart-repo", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--source-video", type=Path, default=None)
+    parser.add_argument("--source-archive", type=Path, default=None)
+    parser.add_argument("--source-search-root", type=Path, action="append", default=[])
+    parser.add_argument("--source-cache-dir", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("results/stage3-manual"))
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--imgsz", type=int, default=1008)
@@ -280,9 +387,20 @@ def main() -> int:
     config_path = args.config or (root / "dart_stage3.json")
     config = json.loads(config_path.read_text())
     validate_config(config)
-    video_path = Path(config["source_video"])
-    if not video_path.is_file():
-        parser.error(f"Stage-3 source video not found: {video_path}")
+    search_roots = args.source_search_root or [
+        Path(value) for value in config.get("source_search_roots", [])
+    ]
+    try:
+        video_path, video_resolution = resolve_source_video(
+            Path(config["source_video"]),
+            explicit_video=args.source_video,
+            explicit_archive=args.source_archive,
+            search_roots=search_roots,
+            cache_dir=args.source_cache_dir,
+            archive_basename=config.get("source_archive_basename"),
+        )
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        parser.error(str(exc))
     if not args.checkpoint.is_file():
         parser.error(f"SAM3 checkpoint not found: {args.checkpoint}")
     if not (args.dart_repo / "demo_multiclass.py").is_file():
@@ -302,6 +420,8 @@ def main() -> int:
 
     output_dir = (root / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"STAGE3_SOURCE_VIDEO={video_path}")
+    print(f"STAGE3_SOURCE_RESOLUTION={video_resolution}")
     started = datetime.now(timezone.utc)
 
     model_started = time.perf_counter()
