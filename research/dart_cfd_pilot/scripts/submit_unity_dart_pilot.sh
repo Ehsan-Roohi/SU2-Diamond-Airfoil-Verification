@@ -16,6 +16,7 @@ set -Eeuo pipefail
 umask 077
 
 readonly DART_COMMIT="b4f954319ad4c26ab1372d130719eb2f4ddd4ea6"
+readonly SETUPTOOLS_VERSION="81.0.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE_PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 readonly PROJECT_ROOT="${DART_PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-${SOURCE_PROJECT_ROOT}}}"
@@ -60,13 +61,21 @@ git -C "${DART_REPO}" checkout --detach "${DART_COMMIT}"
 
 readonly INSTALL_STAMP="${ENV_PREFIX}/.dart-${DART_COMMIT}.ready"
 if [[ ! -f "${INSTALL_STAMP}" ]]; then
-    python -m pip install --upgrade pip setuptools wheel
+    python -m pip install --upgrade pip "setuptools==${SETUPTOOLS_VERSION}" wheel
     python -m pip install torch==2.7.0 torchvision==0.22.0 \
         --index-url https://download.pytorch.org/whl/cu126
     python -m pip install -e "${DART_REPO}"
     python -m pip install pillow pytest huggingface_hub
     touch "${INSTALL_STAMP}"
 fi
+
+# DART's pinned SAM3 code imports pkg_resources, removed in setuptools 82.
+# Repair environments created by older versions of this submit script even when
+# their install stamp already exists.
+if ! python -c 'import pkg_resources' >/dev/null 2>&1; then
+    python -m pip install "setuptools==${SETUPTOOLS_VERSION}"
+fi
+python -W ignore::UserWarning -c 'import pkg_resources'
 
 if [[ ! -s "${CHECKPOINT}" ]]; then
     if [[ -z "${HF_TOKEN:-}" ]]; then
