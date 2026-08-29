@@ -74,7 +74,7 @@ assert c["riemann_solver"] == 1 and c["weno_order"] == 5 and c["mapped_weno"] ==
 assert c["viscous"] == "T" and c["ib_neighborhood_radius"] == 4
 assert math.isclose(3.0*c["fluid_pp(1)%Re(1)"], float(sys.argv[4]), rel_tol=1e-12)
 PY
-    job=$(sbatch --parsable --ntasks="$MPI_RANKS" --mem="${memories[$i]}" \
+    job=$(sbatch --parsable --nice=5000 --ntasks="$MPI_RANKS" --mem="${memories[$i]}" \
         --time="${walltimes[$i]}" --constraint="$CONSTRAINT" \
         --job-name="mfc-tim-re1e4-$grid" --mail-user="$MAIL_USER" --mail-type=BEGIN,END,FAIL \
         --output="$case_dir/slurm-%j.out" --error="$case_dir/slurm-%j.err" \
