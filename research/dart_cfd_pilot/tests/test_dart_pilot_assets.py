@@ -99,3 +99,13 @@ def test_unity_submit_pins_pkg_resources_compatible_setuptools():
     assert 'readonly SETUPTOOLS_VERSION="81.0.0"' in script
     assert '"setuptools==${SETUPTOOLS_VERSION}"' in script
     assert "if ! python -c 'import pkg_resources'" in script
+
+
+def test_unity_submit_uses_flat_result_paths():
+    script = (ROOT / "scripts" / "submit_unity_dart_pilot.sh").read_text()
+    runner = (ROOT / "scripts" / "run_dart_pilot.py").read_text()
+    assert 'readonly OUTPUT_REL="results/${RUN_ID}"' in script
+    assert 'results/${RUN_ID}.tar.gz' in script
+    assert 'sha256sum "${ARCHIVE}" > "${CHECKSUM}"' in script
+    assert "results/inference" not in script
+    assert 'default=Path("results/manual")' in runner
