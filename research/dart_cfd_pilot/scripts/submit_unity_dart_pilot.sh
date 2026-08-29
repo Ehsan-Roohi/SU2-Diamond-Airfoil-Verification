@@ -25,10 +25,11 @@ readonly DART_REPO="${WORK_ROOT}/DART"
 readonly ENV_PREFIX="${WORK_ROOT}/conda/dart-sam3-py311"
 readonly CHECKPOINT_DIR="${WORK_ROOT}/checkpoints"
 readonly CHECKPOINT="${SAM3_CHECKPOINT:-${CHECKPOINT_DIR}/sam3.pt}"
-readonly RUN_TAG="unity-${SLURM_JOB_ID:-manual}"
-readonly OUTPUT_REL="results/inference/${RUN_TAG}"
+readonly RUN_ID="${SLURM_JOB_ID:-manual}"
+readonly OUTPUT_REL="results/${RUN_ID}"
 readonly OUTPUT_DIR="${PROJECT_ROOT}/research/dart_cfd_pilot/${OUTPUT_REL}"
-readonly ARCHIVE="${PROJECT_ROOT}/research/dart_cfd_pilot/results/dart_${RUN_TAG}.tar.gz"
+readonly ARCHIVE="${PROJECT_ROOT}/research/dart_cfd_pilot/results/${RUN_ID}.tar.gz"
+readonly CHECKSUM="${ARCHIVE}.sha256.txt"
 
 if [[ ! -f "${PROJECT_ROOT}/research/dart_cfd_pilot/dart_cases.json" ]]; then
     echo "ERROR: DART pilot repository not found under PROJECT_ROOT=${PROJECT_ROOT}" >&2
@@ -134,7 +135,9 @@ run_rc=$?
 set -e
 
 tar -C "${OUTPUT_DIR}" -czf "${ARCHIVE}" .
+sha256sum "${ARCHIVE}" > "${CHECKSUM}"
 echo "DART_RUN_RC=${run_rc}"
 echo "DART_OUTPUT_DIR=${OUTPUT_DIR}"
 echo "DART_ARCHIVE=${ARCHIVE}"
+echo "DART_CHECKSUM=${CHECKSUM}"
 exit "${run_rc}"

@@ -7,20 +7,26 @@ solutions at Mach 3 and 40 deg incidence. An SU2/SST image is retained only as
 a secondary cross-solver control. The package includes clean detector inputs,
 provenance, and a repeatable runner.
 
-## Outcome recorded on 2026-08-29
+## Unity outcome recorded on 2026-08-29
 
-The CFD assets passed the local integrity, image-readability, and matched-case
-checks. DART commit `b4f954319ad4c26ab1372d130719eb2f4ddd4ea6` cloned and
-installed, but CFD inference did **not** run on the available host:
+Unity job `63758578` completed the full CUDA pipeline on an NVIDIA A100-SXM4
+80 GB GPU with PyTorch 2.7.0+cu126. All five repository preflight tests passed,
+the gated `sam3.pt` checkpoint was verified, and DART returned code 0 for all
+five CFD images. The result archive SHA-256 was
+`802c97038cd54d1e888d8abc73d9a2d74e9336806dd2b41b6398718050f82145`.
 
-1. the host had CPU-only PyTorch and no NVIDIA CUDA device;
-2. DART's current CPU path contains CUDA-only constructor allocations;
-3. the required `facebook/sam3` checkpoint is gated and returned HTTP 401
-   without authenticated model access.
+The default natural-language prompts did not yield reliable CFD semantics.
+Four images produced no detections at confidence 0.15. The Euler schlieren
+image produced one large `separation bubble` mask with score 0.174, although
+the Euler/slip-wall case does not support that physical interpretation. This is
+therefore a low-confidence false positive, not a validated separation
+diagnosis.
 
-Therefore this branch contains no claimed DART boxes, masks, scores, or speed
-measurements. See `results/dart_preflight_2026-08-29.json` and
-`results/DART_ATTEMPT.md` for the fail-closed record.
+The completed run establishes that the DART/SAM3 pipeline is technically
+reproducible on Unity, but the off-the-shelf model and prompts do not yet
+provide trustworthy shock, wake, shear-layer, vortex, or separation labels for
+these scientific contour images. Future claims require prompt/threshold
+sensitivity tests and comparison with CFD-derived reference masks.
 
 ## Inputs
 
@@ -83,7 +89,7 @@ python research/dart_cfd_pilot/scripts/run_dart_pilot.py \
 
 The default run requests masks as well as boxes. Add `--detection-only` for a
 box-only timing screen. The runner records commands, return codes, log tails,
-and output paths in `results/inference/dart_run_report.json`.
+and output paths in `results/manual/dart_run_report.json`.
 
 ## Submit the pilot on Unity (A100)
 
@@ -108,8 +114,13 @@ cd /project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification && 
 
 If the approved checkpoint already exists elsewhere, set
 `SAM3_CHECKPOINT=/secure/path/sam3.pt` before submission. Do not commit the
-token or checkpoint. The job writes a per-job environment record and creates
-`research/dart_cfd_pilot/results/dart_unity-JOBID.tar.gz`.
+token or checkpoint. Each job now uses the shallow result layout:
+
+```text
+research/dart_cfd_pilot/results/JOBID/
+research/dart_cfd_pilot/results/JOBID.tar.gz
+research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
+```
 
 ## Render the native SU2/SST field again
 
