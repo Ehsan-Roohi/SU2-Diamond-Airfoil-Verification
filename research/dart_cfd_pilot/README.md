@@ -182,3 +182,53 @@ recorded:
 - comparison with geometry- or gradient-derived reference labels;
 - sensitivity to prompt wording and confidence threshold;
 - separate conclusions for airfoil detection and flow-structure segmentation.
+
+## Stage 2 Unity result and Stage 3 decision gate
+
+Unity job `63758937` completed Stage 2 on an NVIDIA A100-SXM4 80 GB GPU.
+Its archive SHA-256 is
+`0cc11d39cb3eae381dfe80977ae322690b66b108a9d70835e4bb3e5bcc33554d`.
+Crops and prompt synonyms exposed a real but narrow domain-transfer signal:
+the prompts `swirl`, `vortex`, and `spiral` repeatedly localized visible
+vortex cores in the MFC vorticity field. The strongest `recirculation region`
+prediction instead localized the solid diamond, and many other predictions
+covered most of a crop. Stage 2 therefore supports temporal vortex screening,
+not a general shock, wake, or separation detector.
+
+Stage 3 tests whether the plausible single-frame vortex signal persists through
+the existing 61-frame MFC movie from nondimensional time 0 to 3. It:
+
+1. analyzes a fixed wake crop with four vortex prompt synonyms;
+2. rejects boxes larger than 2% of the crop;
+3. requires overlap from at least two distinct prompts;
+4. requires overlap with a high-chroma vorticity-raster proxy;
+5. runs ByteTrack and maps track centers back to the recorded physical plot
+   coordinates;
+6. reports trajectories, convection proxies, track-birth intervals, and a
+   nondimensional shedding-frequency proxy.
+
+The chroma gate is visualization-dependent and is not physical ground truth.
+The Stage-3 claim gate can only justify building a raw-field benchmark. A paper
+claim still requires labels computed from numerical vorticity, Rortex,
+swirling strength, Q, or lambda2 and sensitivity to those definitions.
+
+Submit from the repository root on Unity after checking out the exact merged
+revision:
+
+```bash
+mkdir -p logs
+sbatch research/dart_cfd_pilot/scripts/submit_unity_dart_stage3.sh
+```
+
+The result remains shallow:
+
+```text
+research/dart_cfd_pilot/results/JOBID/
+research/dart_cfd_pilot/results/JOBID.tar.gz
+research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
+```
+
+Continue to raw-field validation only if `stage3_report.json` records
+`claim_gate=temporal_signal_present_needs_raw_field_validation`. Otherwise,
+the off-the-shelf DART route is stopped rather than tuned against one movie.
+
