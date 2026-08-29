@@ -92,3 +92,10 @@ def test_unity_submit_uses_slurm_submit_directory():
     assert "SLURM_SUBMIT_DIR" in script
     assert "DART_PROJECT_ROOT" in script
     assert 'readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"' not in script
+
+
+def test_unity_submit_pins_pkg_resources_compatible_setuptools():
+    script = (ROOT / "scripts" / "submit_unity_dart_pilot.sh").read_text()
+    assert 'readonly SETUPTOOLS_VERSION="81.0.0"' in script
+    assert '"setuptools==${SETUPTOOLS_VERSION}"' in script
+    assert "if ! python -c 'import pkg_resources'" in script
