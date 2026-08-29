@@ -85,6 +85,32 @@ The default run requests masks as well as boxes. Add `--detection-only` for a
 box-only timing screen. The runner records commands, return codes, log tails,
 and output paths in `results/inference/dart_run_report.json`.
 
+## Submit the pilot on Unity (A100)
+
+The batch script creates a reusable Python 3.11 environment under the PI project
+directory, installs the pinned DART commit and CUDA 12.6 PyTorch, runs the asset
+tests, performs all five inference cases, and packages the results. It requests
+one A100 GPU, 64 GB RAM, and two hours on the `gpu` partition.
+
+First accept the model terms at
+[facebook/sam3](https://huggingface.co/facebook/sam3). If `sam3.pt` is not
+already present, load the Hugging Face token without putting it in shell history:
+
+```bash
+read -rsp "Hugging Face token: " HF_TOKEN; export HF_TOKEN; echo
+```
+
+After this branch is merged into `main`, submit from a Unity login node:
+
+```bash
+cd /project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification && git switch main && git pull --ff-only && mkdir -p logs && sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_pilot.sh
+```
+
+If the approved checkpoint already exists elsewhere, set
+`SAM3_CHECKPOINT=/secure/path/sam3.pt` before submission. Do not commit the
+token or checkpoint. The job writes a per-job environment record and creates
+`research/dart_cfd_pilot/results/dart_unity-JOBID.tar.gz`.
+
 ## Render the native SU2/SST field again
 
 The source archive contained a 130,320-point, 129,600-quad VTU field. It is not
