@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "purpose": "Physics-gated audit of Stage-3 DART vortex tracks. The audit removes duplicate identities and blocks publication claims until raw-field reference vortices are supplied.",
+  "minimum_observations": 5,
+  "minimum_lifetime": 0.25,
+  "minimum_displacement": 0.1,
+  "minimum_continuity": 0.7,
+  "minimum_mean_score": 0.08,
+  "minimum_unique_qualified_tracks": 3,
+  "duplicate_minimum_shared_frames": 3,
+  "duplicate_median_center_distance": 0.15,
+  "duplicate_median_iou": 0.25,
+  "reference_match_distance": 0.25,
+  "reference_minimum_precision": 0.7,
+  "reference_minimum_recall": 0.7,
+  "reference_minimum_f1": 0.7,
+  "reference_maximum_center_rmse": 0.2,
+  "reference_maximum_id_switches": 0,
+  "reference_required_columns": [
+    "frame_index",
+    "reference_id",
+    "x_physical",
+    "y_physical"
+  ]
+}

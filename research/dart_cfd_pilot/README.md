@@ -250,3 +250,48 @@ Continue to raw-field validation only if `stage3_report.json` records
 `claim_gate=temporal_signal_present_needs_raw_field_validation`. Otherwise,
 the off-the-shelf DART route is stopped rather than tuned against one movie.
 
+
+
+## Stage 4: physics-gated track audit
+
+Unity job `63761044` completed Stage 3 on 61 frames and produced 298
+prompt-consensus detections, 34 tracked observations, and four initially
+qualified track identities. A post-run audit showed that identities 26 and 32
+overlap on the same physical structure (three shared frames, median physical
+center distance 0.1002, median box IoU 0.3185). Only 11.4% of the accepted
+consensus detections became track observations. Applying minimum observation,
+lifetime, displacement, continuity, and score gates leaves two unique
+provisional tracks (6 and 32), below the minimum of three.
+
+Stage 4 makes this audit reproducible and prevents the Stage-3 inter-track-birth
+frequency proxy from being used as a shedding frequency. It is CPU-only and
+does not rerun DART. Without an independently generated raw-field reference
+CSV, its strongest possible result is
+`diagnostic_signal_present_raw_field_validation_required`.
+
+Submit the audit for the recorded Stage-3 directory:
+
+```bash
+export DART_STAGE4_STAGE3_DIR=/project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification-dart/research/dart_cfd_pilot/results/63761044
+sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage4.sh
+```
+
+For physical validation, provide a CSV with
+`frame_index,reference_id,x_physical,y_physical` generated independently from
+raw MFC fields using signed vorticity together with swirling strength or
+Rortex:
+
+```bash
+export DART_STAGE4_REFERENCE_CSV=/absolute/path/raw_field_vortex_reference.csv
+sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage4.sh
+```
+
+The reference gate reports one-to-one precision, recall, F1, center RMSE, and
+ID switches. A publication claim passes only if both temporal uniqueness and
+physical-reference thresholds pass. Results retain the shallow layout:
+
+```text
+research/dart_cfd_pilot/results/JOBID/
+research/dart_cfd_pilot/results/JOBID.tar.gz
+research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
+```
