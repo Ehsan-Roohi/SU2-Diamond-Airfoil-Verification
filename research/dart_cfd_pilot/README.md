@@ -295,3 +295,49 @@ research/dart_cfd_pilot/results/JOBID/
 research/dart_cfd_pilot/results/JOBID.tar.gz
 research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
 ```
+
+
+## Stage 5: raw-field reference and closed-loop validation
+
+Stage 4 confirmed that the four Stage-3 identities include the duplicate pair
+26/32 and reduce to two unique strictly qualified tracks. Job `63764699`
+completed the audit in seven seconds, produced a checksum-valid 2 KB archive,
+and correctly blocked both the movie-derived frequency proxy and publication
+claim.
+
+The original large MFC output directory is no longer present, but its exact
+reproducibility sources remain on the historical branch
+`agent/mfc-a40-iles-final-case` at commit
+`6f71c45d1223dab62dc8f65b1f05dc369ab5932e`. Stage 5 regenerates the
+recorded 61 raw states with MFC commit
+`0c9a1d434410175ac483b8d71646455444e3b7eb`, without generating another
+movie.
+
+For each state it independently computes velocity-gradient vorticity and
+two-dimensional swirling strength, checks the derived vorticity against MFC's
+written `omega3`, and retains spatially separated centres that pass both the
+`lambda_ci` and signed-vorticity gates. The centres are associated in time
+only within a bounded displacement and matching rotation sign. Threshold
+sensitivity is recorded at quantiles 0.985, 0.990, and 0.995.
+
+The same batch job then reruns Stage 4 against
+`stage5_reference.csv`, reporting one-to-one precision, recall, F1, centre
+RMSE, and ID switches. A publication claim remains impossible unless both the
+raw-reference gate and independent DART comparison pass.
+
+Submit from the exact merged revision. The default work directory is
+`/project/pi_roohie_umass_edu/DART_CFD_PILOT/stage5-mfc-raw`; it contains
+large reproducible raw fields and is intentionally not placed inside the
+GitHub result tree.
+
+```bash
+sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage5_regenerate.sh
+```
+
+The small user-facing outputs remain shallow:
+
+```text
+research/dart_cfd_pilot/results/JOBID/
+research/dart_cfd_pilot/results/JOBID.tar.gz
+research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
+```
