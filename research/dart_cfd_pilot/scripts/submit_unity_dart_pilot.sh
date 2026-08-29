@@ -17,7 +17,8 @@ umask 077
 
 readonly DART_COMMIT="b4f954319ad4c26ab1372d130719eb2f4ddd4ea6"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+readonly SOURCE_PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+readonly PROJECT_ROOT="${DART_PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-${SOURCE_PROJECT_ROOT}}}"
 readonly WORK_ROOT="${DART_WORK_ROOT:-/project/pi_roohie_umass_edu/DART_CFD_PILOT}"
 readonly DART_REPO="${WORK_ROOT}/DART"
 readonly ENV_PREFIX="${WORK_ROOT}/conda/dart-sam3-py311"
@@ -27,6 +28,12 @@ readonly RUN_TAG="unity-${SLURM_JOB_ID:-manual}"
 readonly OUTPUT_REL="results/inference/${RUN_TAG}"
 readonly OUTPUT_DIR="${PROJECT_ROOT}/research/dart_cfd_pilot/${OUTPUT_REL}"
 readonly ARCHIVE="${PROJECT_ROOT}/research/dart_cfd_pilot/results/dart_${RUN_TAG}.tar.gz"
+
+if [[ ! -f "${PROJECT_ROOT}/research/dart_cfd_pilot/dart_cases.json" ]]; then
+    echo "ERROR: DART pilot repository not found under PROJECT_ROOT=${PROJECT_ROOT}" >&2
+    echo "Submit this script from the repository root or set DART_PROJECT_ROOT explicitly." >&2
+    exit 2
+fi
 
 mkdir -p "${WORK_ROOT}" "${CHECKPOINT_DIR}" "${OUTPUT_DIR}"
 export HF_HOME="${WORK_ROOT}/hf-cache"
