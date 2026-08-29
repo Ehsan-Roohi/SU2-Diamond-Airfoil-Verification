@@ -220,6 +220,24 @@ mkdir -p logs
 sbatch research/dart_cfd_pilot/scripts/submit_unity_dart_stage3.sh
 ```
 
+The original movie-products directory may be moved after a run is archived.
+Stage 3 therefore accepts either the vorticity MP4 or the recorded
+`mfc-iles-a40-initial-movie-products.zip`. It searches the configured Unity
+data root for the exact basename and refuses ambiguous matches. An explicit
+asset can be supplied without modifying the repository:
+
+```bash
+DART_STAGE3_VIDEO=/absolute/path/mfc-iles-a40-initial-vorticity-shedding.mp4 \
+  sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage3.sh
+
+DART_STAGE3_ARCHIVE=/absolute/path/mfc-iles-a40-initial-movie-products.zip \
+  sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage3.sh
+```
+
+An archived video is extracted once under
+`/project/pi_roohie_umass_edu/DART_CFD_PILOT/stage3-inputs`; it is not copied
+into the per-job result directory.
+
 The result remains shallow:
 
 ```text
