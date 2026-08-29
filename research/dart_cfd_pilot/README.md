@@ -122,6 +122,43 @@ research/dart_cfd_pilot/results/JOBID.tar.gz
 research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
 ```
 
+## Stage 2: domain-transfer screen
+
+The first Unity inference was technically successful but semantically weak:
+four images had no detections and the only retained prediction was a
+low-confidence false positive. Stage 2 tests whether this is mainly caused by
+plot framing and prompt wording before any fine-tuning is attempted.
+
+It performs three controlled changes:
+
+1. removes titles, axes, color bars, and excess far field with normalized
+   \`plot\`, \`body\`, and \`wake\` crops;
+2. evaluates four synonyms within each relevant physical family while never
+   asking an Euler case for a separation bubble;
+3. records box scores down to 0.01 in detection-only mode, then reports counts
+   at 0.01, 0.03, 0.05, 0.10, 0.15, and 0.30 without treating a low score as a
+   physical detection.
+
+The output contains the crops, bounded box previews, a compact prompt-score CSV,
+and a JSON report. All files remain directly inside one per-job directory.
+Stage 2 is still a diagnostic screen: physical acceptance requires comparison
+with masks derived from CFD fields.
+
+After the reusable Stage-1 environment exists, submit on Unity:
+
+\`\`\`bash
+cd /project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification-dart
+sbatch research/dart_cfd_pilot/scripts/submit_unity_dart_stage2.sh
+\`\`\`
+
+Expected layout:
+
+\`\`\`text
+research/dart_cfd_pilot/results/JOBID/
+research/dart_cfd_pilot/results/JOBID.tar.gz
+research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
+\`\`\`
+
 ## Render the native SU2/SST field again
 
 The source archive contained a 130,320-point, 129,600-quad VTU field. It is not
