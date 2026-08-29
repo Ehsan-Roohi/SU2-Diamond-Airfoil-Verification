@@ -109,3 +109,43 @@ def test_unity_submit_uses_flat_result_paths():
     assert 'sha256sum "${ARCHIVE}" > "${CHECKSUM}"' in script
     assert "results/inference" not in script
     assert 'default=Path("results/manual")' in runner
+
+
+def test_stage2_matrix_is_bounded_and_excludes_euler_separation_prompt():
+    stage2 = json.loads((ROOT / "dart_stage2.json").read_text())
+    base = json.loads((ROOT / "dart_cases.json").read_text())
+    assert {case["id"] for case in stage2["cases"]} == {
+        case["id"] for case in base["cases"]
+    }
+    assert stage2["score_floor"] == min(stage2["report_thresholds"])
+    prompts = [
+        prompt
+        for family in stage2["prompt_families"].values()
+        for prompt in family
+    ]
+    assert len(prompts) == len(set(prompts))
+    for case in stage2["cases"]:
+        assert set(case["views"]) == {"plot", "body", "wake"}
+        if case["id"].startswith("euler_"):
+            assert "separation" not in case["families"]
+        for bounds in case["views"].values():
+            left, top, right, bottom = bounds
+            assert 0 <= left < right <= 1
+            assert 0 <= top < bottom <= 1
+
+
+def test_stage2_scripts_parse_and_keep_results_shallow():
+    runner = ROOT / "scripts" / "run_dart_stage2.py"
+    submit = ROOT / "scripts" / "submit_unity_dart_stage2.sh"
+    compile(runner.read_text(), str(runner), "exec")
+    completed = subprocess.run(
+        ["bash", "-n", str(submit)],
+        text=True,
+        capture_output=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    script = submit.read_text()
+    assert 'readonly OUTPUT_REL="results/${RUN_ID}"' in script
+    assert 'results/${RUN_ID}.tar.gz' in script
+    assert "results/inference" not in script
+

@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "purpose": "Stage-2 domain-transfer screen for DART on CFD plots using shallow crops, prompt synonyms, and low-score diagnostics. This is not a physical validation.",
+  "score_floor": 0.01,
+  "report_thresholds": [
+    0.01,
+    0.03,
+    0.05,
+    0.1,
+    0.15,
+    0.3
+  ],
+  "annotate_threshold": 0.05,
+  "max_annotations": 24,
+  "prompt_families": {
+    "geometry": [
+      "airfoil",
+      "aircraft wing",
+      "diamond wing",
+      "kite"
+    ],
+    "shock": [
+      "shock wave",
+      "bow shock",
+      "oblique shock",
+      "wave front"
+    ],
+    "wake": [
+      "wake",
+      "flow trail",
+      "plume",
+      "turbulent trail"
+    ],
+    "vortex": [
+      "vortex",
+      "swirl",
+      "eddy",
+      "spiral"
+    ],
+    "shear": [
+      "shear layer",
+      "mixing layer",
+      "flow interface",
+      "boundary layer"
+    ],
+    "separation": [
+      "flow separation",
+      "recirculation region",
+      "separation bubble",
+      "detached flow"
+    ]
+  },
+  "cases": [
+    {
+      "id": "euler_mfc_alpha40_mach",
+      "families": [
+        "geometry",
+        "shock",
+        "wake"
+      ],
+      "views": {
+        "plot": [
+          0.14,
+          0.07,
+          0.93,
+          0.94
+        ],
+        "body": [
+          0.3,
+          0.29,
+          0.79,
+          0.72
+        ],
+        "wake": [
+          0.42,
+          0.14,
+          0.95,
+          0.72
+        ]
+      }
+    },
+    {
+      "id": "euler_mfc_alpha40_schlieren",
+      "families": [
+        "geometry",
+        "shock",
+        "wake"
+      ],
+      "views": {
+        "plot": [
+          0.11,
+          0.06,
+          0.95,
+          0.95
+        ],
+        "body": [
+          0.28,
+          0.29,
+          0.78,
+          0.7
+        ],
+        "wake": [
+          0.4,
+          0.1,
+          0.95,
+          0.7
+        ]
+      }
+    },
+    {
+      "id": "viscous_mfc_alpha40_schlieren_t3",
+      "families": [
+        "geometry",
+        "shock",
+        "wake",
+        "shear",
+        "separation"
+      ],
+      "views": {
+        "plot": [
+          0.06,
+          0.06,
+          0.83,
+          0.94
+        ],
+        "body": [
+          0.18,
+          0.48,
+          0.72,
+          0.92
+        ],
+        "wake": [
+          0.3,
+          0.12,
+          0.84,
+          0.76
+        ]
+      }
+    },
+    {
+      "id": "viscous_mfc_alpha40_vorticity_t3",
+      "families": [
+        "geometry",
+        "wake",
+        "vortex",
+        "shear",
+        "separation"
+      ],
+      "views": {
+        "plot": [
+          0.06,
+          0.06,
+          0.83,
+          0.94
+        ],
+        "body": [
+          0.18,
+          0.48,
+          0.72,
+          0.92
+        ],
+        "wake": [
+          0.3,
+          0.12,
+          0.84,
+          0.76
+        ]
+      }
+    },
+    {
+      "id": "viscous_su2_sst_alpha40_mach",
+      "families": [
+        "geometry",
+        "shock",
+        "wake",
+        "separation"
+      ],
+      "views": {
+        "plot": [
+          0.08,
+          0.08,
+          0.87,
+          0.94
+        ],
+        "body": [
+          0.2,
+          0.3,
+          0.73,
+          0.72
+        ],
+        "wake": [
+          0.38,
+          0.14,
+          0.83,
+          0.66
+        ]
+      }
+    }
+  ]
+}
