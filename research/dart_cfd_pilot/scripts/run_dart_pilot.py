@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument("--imgsz", type=int, default=1008)
     parser.add_argument("--confidence", type=float, default=0.15)
     parser.add_argument("--detection-only", action="store_true")
-    parser.add_argument("--output-dir", type=Path, default=Path("results/inference"))
+    parser.add_argument("--output-dir", type=Path, default=Path("results/manual"))
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
