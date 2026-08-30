@@ -3,6 +3,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
+
+
+pytest.importorskip("scipy", reason="Stage 10C numerical tests require SciPy")
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_vortex_stage10c_absolute_scale.py"
