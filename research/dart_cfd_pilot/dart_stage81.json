@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "purpose": "Add a predeclared, temporally screened Level-B candidate tier without changing validated Stage-8 Level A.",
+  "level_b_quantile": 0.980,
+  "level_b_gamma2_threshold": 0.70,
+  "level_a_match_radius": 0.06,
+  "minimum_level_b_observations": 3,
+  "minimum_level_b_continuity": 0.60,
+  "minimum_level_b_median_confidence": 0.50,
+  "maximum_added_observation_ratio": 0.60
+}
