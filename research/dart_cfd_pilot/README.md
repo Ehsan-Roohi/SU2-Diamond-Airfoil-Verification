@@ -341,3 +341,39 @@ research/dart_cfd_pilot/results/JOBID/
 research/dart_cfd_pilot/results/JOBID.tar.gz
 research/dart_cfd_pilot/results/JOBID.tar.gz.sha256.txt
 ```
+
+## Stage 6: common-FOV sparse-localization audit
+
+Unity job `63786255` reused the completed 61-state raw sequence and passed
+the Stage-5 reference gates. Sixty of 61 frames had absolute agreement above
+0.9 between MFC's written vorticity and independently differentiated velocity;
+the excluded initial frame contained only machine-level values near
+`1e-14`. The raw comparison associated 29 of 30 canonical DART observations
+with a reference centre (precision 0.9667 and centre RMSE 0.1060), but raw
+observation recall was only 0.0170.
+
+Stage 6 tests whether that low recall is an artefact of unequal fields of view,
+the invalid initial frame, or one arbitrary persistence definition. It:
+
+1. maps the exact Stage-3 raster crop back to physical coordinates;
+2. excludes raw-reference frames that fail the independent vorticity check;
+3. recomputes reference tracks inside the common field of view;
+4. reports inclusive, persistent, and strict track-definition sensitivity;
+5. separates localization precision from track-identity and observation
+   coverage; and
+6. records a diagnostic sparse-localization claim without promoting it to a
+   publication-level comprehensive detector claim.
+
+Submit the lightweight audit without rerunning MFC or DART:
+
+```bash
+export DART_STAGE6_STAGE3_DIR=/project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification-dart/research/dart_cfd_pilot/results/63761044
+export DART_STAGE6_STAGE5_DIR=/project/pi_roohie_umass_edu/github_sync/SU2-Diamond-Airfoil-Verification-dart/research/dart_cfd_pilot/results/63786255
+sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_dart_stage6.sh
+```
+
+The expected outcome is deliberately fail-closed: high precision with sparse
+coverage is recorded as
+`diagnostic_high_precision_sparse_vortex_localization`, not as validated
+comprehensive vortex tracking.
+
