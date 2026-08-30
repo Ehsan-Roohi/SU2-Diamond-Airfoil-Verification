@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "purpose": "Calibrate close-core NMS on early raw MFC frames and evaluate a frozen detector on a disjoint temporal holdout.",
+  "case_id": "viscous_mfc_alpha40_vorticity_t000_t3000",
+  "step_start": 0,
+  "step_stop": 16200,
+  "step_stride": 270,
+  "snapshot_dt": 0.05,
+  "analysis_xlim": [0.6201298701298701, 4.75],
+  "analysis_ylim": [-0.12914691943127998, 3.8785545023696684],
+  "reference_match_radius": 0.12,
+  "close_pair_maximum_separation": 0.18,
+  "calibration_frame_start": 1,
+  "calibration_frame_stop": 30,
+  "holdout_frame_start": 31,
+  "holdout_frame_stop": 60,
+  "search_grid": {
+    "nms_radius_factor": [1.0, 2.0],
+    "minimum_nms_radius": [0.04, 0.08],
+    "minimum_absolute_gamma2": [0.8, 0.86],
+    "minimum_omega_ratio": [0.7, 0.78],
+    "maximum_detections": [50, 60, 70, 80]
+  },
+  "target_maximum_detection_to_reference_ratio": 2.25,
+  "close_pair_objective_weight": 0.25,
+  "candidate_penalty": 0.12,
+  "minimum_holdout_stage8_coverage": 0.80,
+  "maximum_holdout_detection_to_reference_ratio": 2.25,
+  "minimum_holdout_close_member_coverage": 0.70
+}
