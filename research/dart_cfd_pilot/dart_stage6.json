@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "purpose": "Audit DART vortex localization against raw-field references on the identical field of view and across predeclared persistence definitions.",
+  "minimum_vorticity_correlation": 0.9,
+  "reference_definitions": [
+    {
+      "name": "inclusive",
+      "minimum_observations": 3,
+      "minimum_lifetime": 0.1,
+      "minimum_displacement": 0.05,
+      "minimum_continuity": 0.5
+    },
+    {
+      "name": "persistent",
+      "minimum_observations": 5,
+      "minimum_lifetime": 0.25,
+      "minimum_displacement": 0.1,
+      "minimum_continuity": 0.7
+    },
+    {
+      "name": "strict",
+      "minimum_observations": 8,
+      "minimum_lifetime": 0.35,
+      "minimum_displacement": 0.2,
+      "minimum_continuity": 0.7
+    }
+  ],
+  "primary_definition": "persistent",
+  "minimum_sparse_localization_precision": 0.9,
+  "maximum_sparse_observation_coverage": 0.1,
+  "minimum_comprehensive_track_coverage": 0.7,
+  "minimum_comprehensive_observation_coverage": 0.7
+}
