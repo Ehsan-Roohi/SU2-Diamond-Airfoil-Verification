@@ -29,3 +29,7 @@ def test_stage12_submit_is_spool_safe_and_uses_completed_raw_fields():
     assert "SLURM_SUBMIT_DIR" in source
     assert "grep -qx 'status=PASS'" in source
     assert "module load" not in source
+    invocation=source[source.index("PYTHONPATH="):source.index("\ntar -C")]
+    assert '"${PYTHON}" +' not in invocation
+    assert invocation.count("\\\n") == 3
+    assert "run_vortex_stage12_mfc_persistent.py" in invocation
