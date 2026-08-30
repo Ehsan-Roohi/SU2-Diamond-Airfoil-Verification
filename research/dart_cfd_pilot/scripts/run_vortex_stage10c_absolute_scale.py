@@ -81,6 +81,8 @@ def gamma_at(x,y,u,v,omega,i,j,radius):
 
 
 def detect(x,y,u0,v0,cfg):
+    maximum_detections=int(cfg.get('maximum_detections',40))
+    if maximum_detections<1:raise ValueError('maximum_detections must be at least one')
     dx=float(np.median(np.diff(x))); candidates=[]
     for sigma in cfg['scales']:
         u=gaussian_filter(u0,sigma,mode='nearest'); v=gaussian_filter(v0,sigma,mode='nearest')
@@ -107,7 +109,7 @@ def detect(x,y,u0,v0,cfg):
     for q in sorted(candidates,key=lambda z:-z['score']):
         if any(q['sign']==a['sign'] and math.hypot(q['x']-a['x'],q['y']-a['y'])<max(cfg['minimum_nms_radius'],cfg['nms_radius_factor']*max(q['radius'],a['radius'])) for a in accepted): continue
         accepted.append(q)
-        if len(accepted)>=40: break
+        if len(accepted)>=maximum_detections: break
     return accepted
 
 
