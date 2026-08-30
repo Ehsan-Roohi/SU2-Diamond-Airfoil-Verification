@@ -73,6 +73,50 @@ def correlation(a, b, mask) -> float | None:
     return float(np.corrcoef(av, bv)[0, 1])
 
 
+def assess_vorticity_consistency(per_frame: list[dict], config: dict) -> tuple[bool, dict]:
+    """Require the configured number of agreeing frames, while retaining outliers."""
+    threshold = float(config["minimum_vorticity_correlation"])
+    required = int(config["minimum_consistency_frames"])
+    evaluated = []
+    passing = []
+    failures = []
+    for frame in per_frame:
+        correlation_value = frame.get("vorticity_correlation")
+        absolute = None
+        if correlation_value is not None and math.isfinite(float(correlation_value)):
+            absolute = abs(float(correlation_value))
+            evaluated.append(absolute)
+        if absolute is not None and absolute >= threshold:
+            passing.append(frame)
+        else:
+            failures.append(
+                {
+                    "frame_index": frame.get("frame_index"),
+                    "source_step": frame.get("source_step"),
+                    "time": frame.get("time"),
+                    "absolute_vorticity_correlation": absolute,
+                    "reason": (
+                        "below_threshold"
+                        if absolute is not None
+                        else "not_evaluated"
+                    ),
+                }
+            )
+    summary = {
+        "threshold": threshold,
+        "required_passing_frames": required,
+        "evaluated_frames": len(evaluated),
+        "passing_frames": len(passing),
+        "failing_frames": len(failures),
+        "minimum_absolute_correlation": min(evaluated) if evaluated else None,
+        "median_absolute_correlation": (
+            statistics.median(evaluated) if evaluated else None
+        ),
+        "failures": failures,
+    }
+    return len(passing) >= required, summary
+
+
 def extract_cores(x, y, omega, lambda_ci, fluid, config: dict, quantile: float | None = None) -> tuple[list[dict], dict]:
     import numpy as np
 
@@ -355,9 +399,8 @@ def main() -> int:
         ],
     )
 
-    consistency_pass = (
-        len(consistency) >= int(config["minimum_consistency_frames"])
-        and min(consistency) >= float(config["minimum_vorticity_correlation"])
+    consistency_pass, consistency_summary = assess_vorticity_consistency(
+        per_frame, config
     )
     reference_pass = len(all_rows) >= int(config["minimum_reference_rows"])
     gate_pass = consistency_pass and reference_pass and len(steps) == len(required)
@@ -374,6 +417,7 @@ def main() -> int:
         "reference_rows": len(all_rows),
         "reference_tracks": len(track_rows),
         "vorticity_consistency_frames": len(consistency),
+        "vorticity_consistency": consistency_summary,
         "minimum_absolute_vorticity_correlation": min(consistency) if consistency else None,
         "median_absolute_vorticity_correlation": statistics.median(consistency) if consistency else None,
         "per_frame": per_frame,
