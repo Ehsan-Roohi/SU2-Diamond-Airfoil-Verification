@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
-RUNNER = ROOT / "run_dart_stage6_audit.py"
+ROOT = Path(__file__).resolve().parents[1]
+RUNNER = ROOT / "scripts" / "run_dart_stage6_audit.py"
 
 
 def load_runner():
