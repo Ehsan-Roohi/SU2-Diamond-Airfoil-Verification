@@ -83,3 +83,28 @@ def test_stage5_config_and_submit_script_are_reproducible():
     assert "0c9a1d434410175ac483b8d71646455444e3b7eb" in script
     assert 'readonly OUTPUT_REL="results/${RUN_ID}"' in script
     assert "make_recovery_movies.py" not in script
+
+def test_consistency_gate_counts_passing_frames_instead_of_requiring_a_perfect_minimum():
+    runner = load_runner()
+    cfg = config()
+    frames = [
+        {
+            "frame_index": index,
+            "source_step": index * cfg["step_stride"],
+            "time": index * cfg["snapshot_dt"],
+            "vorticity_correlation": 0.99 if index < 50 else 0.01,
+        }
+        for index in range(61)
+    ]
+    passed, summary = runner.assess_vorticity_consistency(frames, cfg)
+    assert passed
+    assert summary["passing_frames"] == 50
+    assert summary["failing_frames"] == 11
+    assert summary["minimum_absolute_correlation"] == 0.01
+    assert summary["failures"][0]["frame_index"] == 50
+
+    frames[49]["vorticity_correlation"] = 0.01
+    passed, summary = runner.assess_vorticity_consistency(frames, cfg)
+    assert not passed
+    assert summary["passing_frames"] == 49
+
