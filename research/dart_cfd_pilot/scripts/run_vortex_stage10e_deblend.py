@@ -71,10 +71,10 @@ def fit_models(x, y, signed_omega, q, roi_radius=.42):
             "cores":[{"x":x1,"y":y1,"radius":r1,"amplitude":a1},{"x":x2,"y":y2,"radius":r2,"amplitude":a2}]}
 
 
-def detect_deblended(x, y, u, v, cfg):
+def detect_deblended(x, y, u, v, cfg, return_diagnostics=False):
     detections=base.detect(x,y,u,v,BASE_CFG)
     omega=np.gradient(v,x,axis=0,edge_order=2)-np.gradient(u,y,axis=1,edge_order=2)
-    out=[]
+    out=[];diagnostics=[]
     for q in detections:
         fit=fit_models(x,y,q["sign"]*omega,q,cfg["roi_radius"])
         split=(fit is not None and fit["bic_gain"]>=cfg["minimum_bic_gain"] and
@@ -82,6 +82,11 @@ def detect_deblended(x, y, u, v, cfg):
                fit["amplitude_ratio"]>=cfg["minimum_amplitude_ratio"] and
                fit["separation"]>=cfg["minimum_separation"] and
                fit["normalized_separation"]>=cfg["minimum_normalized_separation"])
+        diagnostic={"input_x":q["x"],"input_y":q["y"],"rotation_sign":q["sign"],
+                    "input_score":q.get("score",0),"fit_available":fit is not None,"split":bool(split)}
+        if fit is not None:
+            diagnostic.update({k:fit[k] for k in ["bic_gain","improvement","amplitude_ratio","separation","normalized_separation"]})
+        diagnostics.append(diagnostic)
         if not split:
             out.append(q); continue
         for core in fit["cores"]:
@@ -94,7 +99,7 @@ def detect_deblended(x, y, u, v, cfg):
         if any(not(q.get("deblended") and a.get("deblended")) and q["sign"]==a["sign"] and
                math.hypot(q["x"]-a["x"],q["y"]-a["y"])<.045 for a in accepted):continue
         accepted.append(q)
-    return accepted
+    return (accepted,diagnostics) if return_diagnostics else accepted
 
 
 def evaluate(data, x, y, cfg):
