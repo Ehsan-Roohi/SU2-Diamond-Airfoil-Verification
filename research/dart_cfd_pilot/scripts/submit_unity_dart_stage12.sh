@@ -32,7 +32,10 @@ grep -qx 'status=PASS' "${CASE_DIR}/RUN_OK_RAW_FIELDS.txt" || { echo "ERROR: val
 [[ -s "${STAGE8_CATALOGUE}" ]] || { echo "ERROR: Stage 8 catalogue not found: ${STAGE8_CATALOGUE}" >&2; exit 2; }
 mkdir -p "${OUTPUT_DIR}" "${PROJECT_ROOT}/logs"
 
-PYTHONPATH="${MFC_ROOT}/toolchain${PYTHONPATH:+:${PYTHONPATH}}" "${PYTHON}" +  research/dart_cfd_pilot/scripts/run_vortex_stage12_mfc_persistent.py +  --case-dir "${CASE_DIR}" --mfc-root "${MFC_ROOT}" --stage8-catalogue "${STAGE8_CATALOGUE}" +  --config research/dart_cfd_pilot/dart_stage12.json --output-dir "${OUTPUT_DIR}"
+PYTHONPATH="${MFC_ROOT}/toolchain${PYTHONPATH:+:${PYTHONPATH}}" "${PYTHON}" \
+  research/dart_cfd_pilot/scripts/run_vortex_stage12_mfc_persistent.py \
+  --case-dir "${CASE_DIR}" --mfc-root "${MFC_ROOT}" --stage8-catalogue "${STAGE8_CATALOGUE}" \
+  --config research/dart_cfd_pilot/dart_stage12.json --output-dir "${OUTPUT_DIR}"
 
 tar -C "${OUTPUT_DIR}" -czf "${ARCHIVE}" .
 sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256.txt"
