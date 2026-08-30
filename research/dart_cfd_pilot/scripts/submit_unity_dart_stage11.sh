@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vortex-s11
+#SBATCH --account=pi_roohie_umass_edu
 #SBATCH --partition=cpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -8,10 +9,10 @@
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/vortex-s11-%j.out
 #SBATCH --error=logs/vortex-s11-%j.err
+#SBATCH --mail-type=END,FAIL,TIME_LIMIT_80
 
-set -euo pipefail
-module purge
-module load miniforge3/24.7.1
+set -Eeuo pipefail
+umask 077
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE_PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
