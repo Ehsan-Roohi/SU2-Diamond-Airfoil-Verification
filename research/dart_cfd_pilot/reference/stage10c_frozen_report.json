@@ -1,0 +1,147 @@
+{
+  "status": "completed",
+  "train_cases": 80,
+  "test_cases": 240,
+  "grid_points": 36,
+  "selected": {
+    "scales": [
+      1.0,
+      2.0,
+      4.0,
+      8.0,
+      12.0
+    ],
+    "minimum_lambda_ci": 1.0,
+    "minimum_absolute_gamma2": 0.8,
+    "minimum_omega_ratio": 0.7,
+    "minimum_lci_snr": 6.0,
+    "rotation_floor_factor": 2.5,
+    "minimum_sign_coherence": 0.65,
+    "gamma_window_factor": 2.0,
+    "nms_radius_factor": 2.0,
+    "minimum_nms_radius": 0.08,
+    "analysis_boundary_margin": 0.1
+  },
+  "train_metrics": {
+    "precision": 0.9459459459459459,
+    "recall": 0.8333333333333334,
+    "f1": 0.8860759493670887,
+    "normalized_center_rmse": 0.1935473570742802,
+    "tp": 140,
+    "fp": 8,
+    "fn": 28
+  },
+  "test_metrics": {
+    "precision": 0.9552572706935123,
+    "recall": 0.8608870967741935,
+    "f1": 0.9056203605514316,
+    "normalized_center_rmse": 0.20457547576186222,
+    "tp": 427,
+    "fp": 20,
+    "fn": 69
+  },
+  "confidence_intervals_95": {
+    "precision": [
+      0.9336245204907136,
+      0.9751131221719457
+    ],
+    "recall": [
+      0.8270802942655935,
+      0.8938775510204081
+    ],
+    "f1": [
+      0.8822268617654055,
+      0.9283625220591836
+    ],
+    "normalized_center_rmse": [
+      0.18200927634707328,
+      0.22541499927169203
+    ]
+  },
+  "family_metrics": {
+    "random": {
+      "precision": 1.0,
+      "recall": 0.9295774647887324,
+      "f1": 0.9635036496350364,
+      "normalized_center_rmse": 0.11496343750154911,
+      "tp": 66,
+      "fp": 0,
+      "fn": 5
+    },
+    "close_resolved": {
+      "precision": 1.0,
+      "recall": 0.9333333333333333,
+      "f1": 0.9655172413793104,
+      "normalized_center_rmse": 0.17485489568903534,
+      "tp": 56,
+      "fp": 0,
+      "fn": 4
+    },
+    "merger": {
+      "precision": 0.7941176470588235,
+      "recall": 0.45,
+      "f1": 0.574468085106383,
+      "normalized_center_rmse": 0.41593471689565553,
+      "tp": 27,
+      "fp": 7,
+      "fn": 33
+    },
+    "wall_image": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "normalized_center_rmse": 0.21278052953788607,
+      "tp": 30,
+      "fp": 0,
+      "fn": 0
+    },
+    "stuart_shear": {
+      "precision": 0.8125,
+      "recall": 0.8863636363636364,
+      "f1": 0.8478260869565218,
+      "normalized_center_rmse": 0.20668497670519523,
+      "tp": 39,
+      "fp": 9,
+      "fn": 5
+    },
+    "correlated_noise": {
+      "precision": 0.9861111111111112,
+      "recall": 0.8987341772151899,
+      "f1": 0.9403973509933775,
+      "normalized_center_rmse": 0.2122547427198545,
+      "tp": 71,
+      "fp": 1,
+      "fn": 8
+    },
+    "scale": {
+      "precision": 1.0,
+      "recall": 0.8309859154929577,
+      "f1": 0.9076923076923077,
+      "normalized_center_rmse": 0.16311361369268199,
+      "tp": 59,
+      "fp": 0,
+      "fn": 12
+    },
+    "shock_clutter": {
+      "precision": 0.9634146341463414,
+      "recall": 0.9753086419753086,
+      "f1": 0.9693251533742332,
+      "normalized_center_rmse": 0.18900750738621477,
+      "tp": 79,
+      "fp": 3,
+      "fn": 2
+    }
+  },
+  "gates": {
+    "test_f1_lower_ci": "pass",
+    "every_resolved_family_recall": "pass",
+    "localization_upper_ci": "pass"
+  },
+  "claim_gate": "absolute_scale_detector_pass",
+  "notes": [
+    "wall_image uses an opposite-sign image vortex and a near-wall shear layer",
+    "noise is spatially correlated",
+    "matching localization is normalized by the true core radius",
+    "merger cases are reported but excluded from the two-resolved-core recall gate and reserved for Stage 10D event evaluation"
+  ]
+}
