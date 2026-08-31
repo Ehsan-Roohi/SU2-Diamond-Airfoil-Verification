@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import maximum_filter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +36,10 @@ def write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
 
 def all_q_candidates(snapshot: dict, frozen: dict) -> tuple[list[dict], dict]:
     """Return all robust-thresholded, same-sign-NMS Q maxima without a count cap."""
+    # SciPy is available in the Unity analysis environment but intentionally
+    # absent from the repository's lightweight static-test environment.
+    from scipy.ndimage import maximum_filter
+
     score = snapshot["q"]
     fluid = snapshot["fluid"]
     finite = score[fluid & np.isfinite(score)]
