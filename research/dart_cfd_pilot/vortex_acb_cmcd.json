@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "method_name": "Adaptive Candidate-Budget Coherent-Motion Core Detection (ACB-CMCD)",
+  "case_id": "viscous_mfc_mach3_alpha30_f270_t000_t3000",
+  "step_start": 0,
+  "step_stop": 16200,
+  "step_stride": 270,
+  "analysis_xlim": [-1.25, 4.75],
+  "analysis_ylim": [-1.25, 4.25],
+  "calibration_frames": [1, 30],
+  "temporal_holdout_frames": [31, 60],
+  "reference_match_radius": 0.12,
+  "close_pair_maximum_separation": 0.18,
+  "target_maximum_detection_to_reference_ratio": 1.3,
+  "selector_grid": {
+    "minimum_detections": [30],
+    "maximum_detections": [48, 64],
+    "minimum_log_score_gap": [0.08, 0.15, 0.25, 0.4],
+    "tail_score_fraction": [0.25, 0.5, 0.75]
+  },
+  "close_pair_objective_weight": 0.5,
+  "candidate_excess_penalty": 1.0,
+  "safety_cap_penalty": 0.15,
+  "maximum_calibration_safety_cap_fraction": 0.25,
+  "minimum_holdout_coverage_gain": 0.01,
+  "minimum_holdout_close_core_gain": 0.01,
+  "maximum_holdout_detection_to_reference_ratio": 1.35,
+  "physical_figure_frames": [31, 45, 60],
+  "audit_seed": 20260831,
+  "audit_samples_per_category": 12,
+  "audit_crop_half_width": 0.18
+}
