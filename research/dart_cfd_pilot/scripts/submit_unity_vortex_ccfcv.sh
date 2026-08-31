@@ -64,7 +64,20 @@ module purge
 module load openmpi/5.0.3
 export OMP_NUM_THREADS=1
 case_args=(--mode initial --grid f270 --start-time 0 --final-time 3.0 --save-dt 0.05 --dt-factor 1 --format binary)
-if [[ ! -f "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" ]]; then
+if [[ -f "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" ]]; then
+    grep -qx 'status=PASS' "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" || {
+        echo "ERROR: invalid CC-FCV completion status" >&2; exit 8;
+    }
+    grep -qx "alpha_deg=${ALPHA_DEG}" "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" || {
+        echo "ERROR: completed raw case has a different incidence angle" >&2; exit 8;
+    }
+    grep -qx "mfc_commit=${MFC_COMMIT}" "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" || {
+        echo "ERROR: completed raw case has a different MFC commit" >&2; exit 8;
+    }
+    grep -qx 'final_step=16200' "${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt" || {
+        echo "ERROR: completed raw case has an unexpected final step" >&2; exit 8;
+    }
+else
     if find "${CASE_DIR}/restart_data" -maxdepth 1 -type f -name 'lustre_[0-9]*.dat' -print -quit | grep -q .; then
         echo "ERROR: partial CC-FCV run exists without completion marker: ${CASE_DIR}" >&2
         exit 8
@@ -92,10 +105,17 @@ fi
 
 cd "${PROJECT_ROOT}"
 "${TEST_PYTHON}" -m pytest -q research/dart_cfd_pilot/tests
+set +e
 PYTHONPATH="${MFC_ROOT}/toolchain${PYTHONPATH:+:${PYTHONPATH}}" \
     "${MFC_PYTHON}" research/dart_cfd_pilot/scripts/run_vortex_ccfcv.py \
     --case-dir "${CASE_DIR}" --mfc-root "${MFC_ROOT}" \
     --source-baseline-report "${SOURCE_BASELINE}" --output-dir "${OUTPUT_DIR}"
+analysis_rc=$?
+set -e
+[[ "${analysis_rc}" -eq 0 || "${analysis_rc}" -eq 8 ]] || {
+    echo "ERROR: CC-FCV technical execution failed with code ${analysis_rc}" >&2
+    exit "${analysis_rc}"
+}
 
 {
     echo "slurm_job_id=${SLURM_JOB_ID:-manual}"
@@ -111,6 +131,7 @@ PYTHONPATH="${MFC_ROOT}/toolchain${PYTHONPATH:+:${PYTHONPATH}}" \
 tar --no-same-owner -C "${OUTPUT_DIR}" -czf "${ARCHIVE}" .
 sha256sum "${ARCHIVE}" > "${CHECKSUM}"
 echo "CCFCV_RC=0"
+echo "CCFCV_SCIENTIFIC_RC=${analysis_rc}"
 echo "CCFCV_OUTPUT_DIR=${OUTPUT_DIR}"
 echo "CCFCV_ARCHIVE=${ARCHIVE}"
 echo "CCFCV_CHECKSUM=${CHECKSUM}"
