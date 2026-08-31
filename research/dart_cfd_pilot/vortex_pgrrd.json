@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Test physics-guided rotating-region multi-peak deblending after the Stage 15 Gamma benchmark, with a fixed temporal holdout and controlled synthetic truth.",
+  "purpose": "Test Physics-Guided Rotating-Region Deblending (PG-RRD) after the variable-Gamma benchmark, with a fixed temporal holdout and controlled synthetic truth.",
   "step_start": 0,
   "step_stop": 16200,
   "step_stride": 270,

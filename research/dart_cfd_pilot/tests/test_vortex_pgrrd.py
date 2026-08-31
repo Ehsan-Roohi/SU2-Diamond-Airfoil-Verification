@@ -8,18 +8,18 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/run_vortex_stage16_regions.py"
+SCRIPT = ROOT / "scripts/run_vortex_pgrrd.py"
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("stage16_test_module", SCRIPT)
+    spec = importlib.util.spec_from_file_location("pgrrd_test_module", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
 
-def test_stage16_python_parses():
+def test_pgrrd_python_parses():
     ast.parse(SCRIPT.read_text())
 
 
@@ -45,17 +45,17 @@ def test_pure_translation_does_not_change_derived_vorticity():
     assert np.max(np.abs(dvy - moved_dvy)) < 1.0e-10
 
 
-def test_stage16_configuration_preserves_holdout_and_candidate_control():
-    cfg = json.loads((ROOT / "dart_stage16.json").read_text())
+def test_pgrrd_configuration_preserves_holdout_and_candidate_control():
+    cfg = json.loads((ROOT / "vortex_pgrrd.json").read_text())
     assert cfg["calibration_frames"] == [1, 30]
     assert cfg["holdout_frames"] == [31, 60]
     assert cfg["target_maximum_detection_to_reference_ratio"] == 1.30
     assert max(cfg["calibration_grid"]["nms_radius"]) < cfg["close_pair_maximum_separation"]
 
 
-def test_submit_is_flat_and_consumes_stage15_gate():
-    source = (ROOT / "scripts/submit_unity_dart_stage16.sh").read_text()
-    assert 'ARCHIVE="${PROJECT_ROOT}/STAGE16_VORTEX_${RUN_ID}_COMPLETE.tar.gz"' in source
+def test_submit_is_flat_and_consumes_gamma_gate():
+    source = (ROOT / "scripts/submit_unity_vortex_pgrrd.sh").read_text()
+    assert 'ARCHIVE="${PROJECT_ROOT}/VORTEX_PGRRD_${RUN_ID}_COMPLETE.tar.gz"' in source
     assert "stage15_report.json" in source
     assert "grep -qx 'status=PASS'" in source
     assert '"${PYTHON}" +' not in source

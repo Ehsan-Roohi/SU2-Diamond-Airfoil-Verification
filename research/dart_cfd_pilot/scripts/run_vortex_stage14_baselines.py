@@ -157,7 +157,7 @@ def draw_comparison(path,snapshot,methods,title):
     import matplotlib.pyplot as plt
     masked=np.where(snapshot["fluid"],snapshot["omega"],np.nan);lim=max(float(np.nanpercentile(np.abs(masked),99.5)),1e-8)
     fig,axes=plt.subplots(2,2,figsize=(13,10),sharex=True,sharey=True,constrained_layout=True)
-    labels=[("stage13","Stage 13"),("q","Q criterion"),("lci","Swirling strength"),("omega_abs","Vorticity extrema")]
+    labels=[("stage13","CMCD"),("q","Q criterion"),("lci","Swirling strength"),("omega_abs","Vorticity extrema")]
     for ax,(key,label) in zip(axes.flat,labels):
         ax.contourf(snapshot["x"],snapshot["y"],masked.T,levels=np.linspace(-lim,lim,81),cmap="RdBu_r",extend="both")
         d=methods[key]

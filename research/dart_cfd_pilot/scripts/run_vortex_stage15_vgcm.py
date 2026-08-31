@@ -203,7 +203,7 @@ def draw_comparison(path, snapshot, methods, title):
     masked = np.where(snapshot["fluid"], snapshot["omega"], np.nan)
     limit = max(float(np.nanpercentile(np.abs(masked), 99.5)), 1.0e-8)
     panels = [
-        ("stage13", "Stage 13"),
+        ("stage13", "CMCD"),
         ("q", "Q criterion"),
         ("vgcm_gamma1", r"Optimized ASDA $\Gamma_1$"),
         ("gi_vgcm", r"GI-VGCM $\Gamma_2$ + rotation veto"),

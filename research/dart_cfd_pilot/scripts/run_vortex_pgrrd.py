@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Physics-guided rotating-region deblending with a fixed temporal holdout."""
+"""Physics-Guided Rotating-Region Deblending (PG-RRD)."""
 from __future__ import annotations
 
 import argparse
@@ -322,24 +322,24 @@ def draw_physical_comparison(path, snapshot, q_detections, hybrid_detections):
 
 def main():
     global stage8, stage14
-    stage8 = load_sibling("stage8_stage16", "run_dart_stage8_physics_catalogue.py")
-    stage14 = load_sibling("stage14_stage16", "run_vortex_stage14_baselines.py")
+    stage8 = load_sibling("reference_catalogue_pgrrd", "run_dart_stage8_physics_catalogue.py")
+    stage14 = load_sibling("baseline_tools_pgrrd", "run_vortex_stage14_baselines.py")
     parser = argparse.ArgumentParser()
     parser.add_argument("--case-dir", type=Path, required=True)
     parser.add_argument("--mfc-root", type=Path, required=True)
-    parser.add_argument("--stage8-catalogue", type=Path, required=True)
-    parser.add_argument("--stage14-report", type=Path, required=True)
-    parser.add_argument("--stage15-report", type=Path, required=True)
+    parser.add_argument("--reference-catalogue", type=Path, required=True)
+    parser.add_argument("--baseline-report", type=Path, required=True)
+    parser.add_argument("--gamma-report", type=Path, required=True)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    cfg = json.loads((args.config or ROOT / "dart_stage16.json").read_text())
+    cfg = json.loads((args.config or ROOT / "vortex_pgrrd.json").read_text())
     out = args.output_dir.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    stage14_report = json.loads(args.stage14_report.read_text())
-    stage15_report = json.loads(args.stage15_report.read_text())
-    if stage15_report.get("claim_gate") != "gi_vgcm_benchmark_complete_not_superior_to_q":
-        parser.error("Stage 15 terminal comparison gate is missing or unexpected")
+    baseline_report = json.loads(args.baseline_report.read_text())
+    gamma_report = json.loads(args.gamma_report.read_text())
+    if gamma_report.get("claim_gate") != "gi_vgcm_benchmark_complete_not_superior_to_q":
+        parser.error("Variable-Gamma terminal comparison gate is missing or unexpected")
 
     sys.path.insert(0, str(args.mfc_root.resolve() / "toolchain"))
     from mfc.viz.reader import assemble, discover_timesteps
@@ -350,7 +350,7 @@ def main():
     if missing:
         parser.error(f"raw MFC sequence incomplete: missing {len(missing)}; first={missing[0]}")
     references = {}
-    with args.stage8_catalogue.open(newline="") as stream:
+    with args.reference_catalogue.open(newline="") as stream:
         for row in csv.DictReader(stream):
             references.setdefault(int(row["source_step"]), []).append(row)
 
@@ -359,7 +359,7 @@ def main():
     snapshots = {}
     q_detections = {}
     physical = {}
-    q_parameters = stage14_report["selected_baseline_configurations"]["q"]
+    q_parameters = baseline_report["selected_baseline_configurations"]["q"]
     for frame, step in enumerate(required):
         assembled = assemble(str(args.case_dir.resolve()), step, fmt="binary")
         xi = np.flatnonzero((assembled.x_cc >= cfg["analysis_xlim"][0]) & (assembled.x_cc <= cfg["analysis_xlim"][1]))
@@ -407,20 +407,20 @@ def main():
     for frame, rows in selected_by_frame.items():
         for row in rows:
             detections.append({"frame_index": frame, "source_step": required[frame], **row})
-    write_csv(out / "stage16_detections.csv", detections)
-    write_csv(out / "stage16_calibration_sweep.csv", sweep)
+    write_csv(out / "pgrrd_detections.csv", detections)
+    write_csv(out / "pgrrd_calibration_sweep.csv", sweep)
     synthetic = synthetic_benchmark(selected, cfg)
-    write_csv(out / "stage16_synthetic_resolution.csv", synthetic.pop("cases"))
+    write_csv(out / "pgrrd_synthetic_resolution.csv", synthetic.pop("cases"))
     for frame, snapshot in physical.items():
         draw_physical_comparison(
-            out / f"stage16_physical_{frame:04d}.png", snapshot,
+            out / f"pgrrd_physical_{frame:04d}.png", snapshot,
             q_detections.get(frame, []), selected_by_frame.get(frame, [])
         )
 
-    q_expected = stage14_report["holdout_metrics"]["q"]
+    q_expected = baseline_report["holdout_metrics"]["q"]
     gates = {
         "raw_sequence_complete": "pass",
-        "stage15_negative_result_consumed": "pass",
+        "variable_gamma_negative_result_consumed": "pass",
         "q_holdout_reproduced": "pass" if abs(q_metrics["coverage"] - q_expected["coverage"]) <= 1.0e-12 else "fail",
         "hybrid_candidate_control": "pass" if hybrid_metrics["detection_to_reference_ratio"] <= cfg["maximum_detection_to_reference_ratio"] else "fail",
         "hybrid_beats_q_coverage": "pass" if hybrid_metrics["coverage"] > q_metrics["coverage"] else "fail",
@@ -436,10 +436,11 @@ def main():
         "status": "completed",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "decision_context": {
-            "stage15_claim_gate": stage15_report["claim_gate"],
-            "stage15_gi_vgcm_coverage": stage15_report["holdout_metrics"]["gi_vgcm"]["coverage"],
-            "stage15_q_coverage": stage15_report["holdout_metrics"]["q"]["coverage"],
+            "variable_gamma_claim_gate": gamma_report["claim_gate"],
+            "gi_vgcm_coverage": gamma_report["holdout_metrics"]["gi_vgcm"]["coverage"],
+            "q_coverage_in_gamma_benchmark": gamma_report["holdout_metrics"]["q"]["coverage"],
         },
+        "method_name": "Physics-Guided Rotating-Region Deblending (PG-RRD)",
         "method": "zero-inflation-safe rotating-region multi-peak deblending using Q, lambda_ci, and signed vorticity",
         "selected_configuration": selected,
         "holdout_metrics": {"hybrid": hybrid_metrics, "q": q_metrics},
@@ -450,20 +451,20 @@ def main():
             if superior else "q_retained_as_primary_detector_cross_case_validation_next"
         ),
         "limitations": [
-            "The Stage 8 catalogue is criteria-derived and non-exhaustive, so it is not independent ground truth.",
+            "The criteria-derived reference catalogue is non-exhaustive, so it is not independent ground truth.",
             "Only frames 1-30 were used for calibration; frames 31-60 are the fixed temporal holdout.",
             "Independent expert labels and a second physical flow case are required before publication precision and recall are claimed.",
             "The detector localizes two-dimensional vortex cores; it does not segment three-dimensional vortex tubes.",
         ],
     }
-    (out / "stage16_report.json").write_text(json.dumps(report, indent=2) + "\n")
-    print("STAGE16_STATUS=completed")
-    print(f"STAGE16_HYBRID_COVERAGE={hybrid_metrics['coverage']:.6f}")
-    print(f"STAGE16_HYBRID_CLOSE_COVERAGE={hybrid_metrics['close_member_coverage']:.6f}")
-    print(f"STAGE16_Q_COVERAGE={q_metrics['coverage']:.6f}")
-    print(f"STAGE16_MIN_SYNTHETIC_SEPARATION={synthetic['minimum_resolved_separation']}")
-    print(f"STAGE16_CLAIM_GATE={report['claim_gate']}")
-    print(f"STAGE16_REPORT={out / 'stage16_report.json'}")
+    (out / "pgrrd_report.json").write_text(json.dumps(report, indent=2) + "\n")
+    print("PGRRD_STATUS=completed")
+    print(f"PGRRD_HYBRID_COVERAGE={hybrid_metrics['coverage']:.6f}")
+    print(f"PGRRD_HYBRID_CLOSE_COVERAGE={hybrid_metrics['close_member_coverage']:.6f}")
+    print(f"PGRRD_Q_COVERAGE={q_metrics['coverage']:.6f}")
+    print(f"PGRRD_MIN_SYNTHETIC_SEPARATION={synthetic['minimum_resolved_separation']}")
+    print(f"PGRRD_CLAIM_GATE={report['claim_gate']}")
+    print(f"PGRRD_REPORT={out / 'pgrrd_report.json'}")
     return 0
 
 
