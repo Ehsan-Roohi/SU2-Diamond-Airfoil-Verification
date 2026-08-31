@@ -42,3 +42,14 @@ def test_ccfcv_submit_has_flat_archive_and_fail_closed_inputs():
     assert "CCFCV_SCIENTIFIC_RC=" in source
     assert '"${analysis_rc}" -eq 0 || "${analysis_rc}" -eq 8' in source
     assert '"${MFC_PYTHON}" +' not in source
+
+
+def test_ccfcv_recovery_never_repeats_the_expensive_simulation():
+    source = (ROOT / "scripts/submit_unity_vortex_ccfcv_recover.sh").read_text()
+    assert "recovered_from_job=63811016" in source
+    assert "verify_binary_sequence" in source
+    assert "CCFCV_POSTPROCESS_RECOVERY=completed" in source
+    assert "RUN_OK_CCFCV_RAW_FIELDS.txt" in source
+    assert "-t post_process" in source
+    assert "-t simulation" not in source
+    assert "-t pre_process" not in source
