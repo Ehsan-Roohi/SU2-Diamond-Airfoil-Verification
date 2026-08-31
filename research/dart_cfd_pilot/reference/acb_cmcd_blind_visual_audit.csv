@@ -1,0 +1,37 @@
+audit_id,is_vortex,center_correct,morphology,confidence,annotator,notes
+B001,no,no,shear_layer,4,claude,"cross on the interface between counter-signed shear ribbons; elongated bands, no roll-up"
+B002,yes,yes,paired_core,4,claude,compact negative core with wrap-around tail; dipole with the stronger positive core above
+B003,yes,yes,compact_core,5,claude,compact positive core with trailing spiral arm in an alternating street
+B004,yes,yes,compact_core,5,claude,isolated circular negative core with an opposite-sign arc wrapped beneath
+B005,yes,yes,compact_core,4,claude,compact negative core; positive braid wrapping beneath
+B006,no,no,shock_or_wall,5,claude,"straight shock front with grid-scale alternating-sign beads; numerical oscillation, not rotation"
+B007,yes,yes,compact_core,5,claude,compact negative core with a positive arm curling around it
+B008,yes,shifted,paired_core,3,claude,same-sign double lobe on a rolling KH crest; stronger core sits just right of the mark
+B009,yes,yes,compact_core,5,claude,compact negative core with clear spiral winding; near domain outflow but well formed
+B010,yes,yes,paired_core,4,claude,small negative core tucked under a stronger positive core; dipole partner
+B011,yes,yes,paired_core,3,claude,upper lobe of a co-rotating positive pair mid-merger; cross inside the lobe
+B012,no,no,shear_layer,4,claude,local bulge on a continuous wavy shear-layer ribbon; no closed roll-up
+B013,no,no,shock_or_wall,4,claude,"wall-attached vorticity sheet at the body edge; strong gradient ribbon, no rotation"
+B014,no,no,shock_or_wall,4,claude,"near-wall separated sheet at the body edge; elongated wall gradient, no core"
+B015,no,no,shock_or_wall,4,claude,mark sits on the immersed-boundary mask edge in weak near-wall field; recirculation arches nearby but none centred here
+B016,uncertain,uncertain,shear_layer,2,claude,"bead-like thickening on the wavy shear band; incipient billow, no closed core yet"
+B017,no,no,shock_or_wall,4,claude,"wall-attached separated sheet; cross at the sheet's upper edge, no rotation"
+B018,yes,yes,compact_core,5,claude,compact negative core in a field of well-separated alternating cores
+B019,yes,yes,compact_core,5,claude,rolled-up billow core between braids
+B020,yes,yes,paired_core,4,claude,strong elliptical negative core with a small positive satellite; dipole arrangement
+B021,yes,uncertain,compact_core,3,claude,"large positive core truncated by the domain outflow edge; visible extremum just left of the mark, halo ring visible"
+B022,no,no,shear_layer,4,claude,junction of two shear filaments above the body; no closed core
+B023,yes,yes,compact_core,5,claude,compact round positive core in a street
+B024,yes,yes,compact_core,5,claude,clean circular negative core
+B025,no,no,shock_or_wall,5,claude,shock front with grid-locked alternating beads
+B026,yes,yes,compact_core,5,claude,compact negative core; counter-signed neighbours and a clear spiral nearby
+B027,no,no,shock_or_wall,5,claude,attached boundary-layer sheet on the body surface; cross on the mask staircase
+B028,yes,yes,compact_core,4,claude,small teardrop negative core beneath a stronger positive pair; modest amplitude but coherent
+B029,no,no,shock_or_wall,5,claude,windward boundary-layer sheet; cross at the mask edge
+B030,no,no,shock_or_wall,5,claude,shock-bead chain; grid-locked diamond beads on the front
+B031,uncertain,uncertain,paired_core,2,claude,"two same-sign knots on a strained ribbon fragment; incipient roll-up, not clearly detached cores"
+B032,no,no,shock_or_wall,5,claude,shock-bead chain on a straight captured front
+B033,no,no,shock_or_wall,5,claude,windward wall boundary layer; cross at the mask edge
+B034,no,no,shock_or_wall,5,claude,windward wall boundary layer; cross on the mask staircase
+B035,yes,yes,compact_core,5,claude,compact negative core with a braid arcing around it
+B036,no,no,shock_or_wall,5,claude,windward wall boundary layer; cross on the mask staircase
