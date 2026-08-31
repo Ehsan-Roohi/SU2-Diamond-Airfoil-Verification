@@ -11,10 +11,12 @@ set -Eeuo pipefail
 : "${SOURCE_T06:?}"
 : "${SCRIPT:?}"
 : "${OUTPUT:?}"
+: "${PYDEPS:?}"
 
 # Keep the submitted Miniforge environment. Unity has no
 # conda/miniforge3-24.7.1 module and no system ffmpeg.
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
+export PYTHONPATH="$PYDEPS${PYTHONPATH:+:$PYTHONPATH}"
 export MPLCONFIGDIR="$OUTPUT/matplotlib-cache"
 mkdir -p "$OUTPUT" "$MPLCONFIGDIR"
 
