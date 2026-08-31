@@ -356,6 +356,7 @@ def main() -> int:
         "ccfcv_prerequisite": "pass",
         "frozen_physics_configuration": "pass",
         "temporal_split_without_holdout_tuning": "pass",
+        "calibration_candidate_control": "pass" if bool(calibration_metrics["feasible"]) else "fail",
         "holdout_coverage_gain": "pass" if coverage_gain >= cfg["minimum_holdout_coverage_gain"] else "fail",
         "holdout_close_core_gain": "pass" if close_gain >= cfg["minimum_holdout_close_core_gain"] else "fail",
         "holdout_f1_not_worse": "pass" if f1_gain >= 0.0 else "fail",
