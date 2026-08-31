@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "purpose": "Test Physics-Guided Rotating-Region Deblending (PG-RRD) after the variable-Gamma benchmark, with a fixed temporal holdout and controlled synthetic truth.",
+  "step_start": 0,
+  "step_stop": 16200,
+  "step_stride": 270,
+  "analysis_xlim": [0.6201298701298701, 4.75],
+  "analysis_ylim": [-0.12914691943127998, 3.8785545023696684],
+  "calibration_frames": [1, 30],
+  "holdout_frames": [31, 60],
+  "comparison_frames": [30, 45, 60],
+  "low_region_quantile": 0.50,
+  "boundary_margin_cells": 3,
+  "refinement_half_width": 2,
+  "calibration_grid": {
+    "seed_quantile": [0.90, 0.95, 0.975, 0.99],
+    "minimum_source_support": [1, 2],
+    "nms_radius": [0.025, 0.04, 0.055],
+    "maximum_detections": [30, 36, 42]
+  },
+  "reference_match_radius": 0.12,
+  "close_pair_maximum_separation": 0.18,
+  "target_maximum_detection_to_reference_ratio": 1.30,
+  "maximum_detection_to_reference_ratio": 1.30,
+  "close_pair_objective_weight": 0.40,
+  "candidate_penalty": 0.35,
+  "synthetic_separations": [0.04, 0.06, 0.08, 0.10, 0.12, 0.16, 0.20],
+  "synthetic_translation": [12.0, -4.0],
+  "synthetic_shear": 0.5,
+  "pure_shear_rate": 3.0,
+  "synthetic_match_radius": 0.05
+}
