@@ -202,6 +202,11 @@ def main() -> int:
         "raw_sequence_complete": "pass",
         "finite_fields": "pass",
         "derived_vorticity_consistency": "pass" if consistency_pass else "fail",
+        "reference_catalogue": (
+            "pass"
+            if len(reference_rows) >= cfg["reference"]["minimum_reference_rows"]
+            else "fail"
+        ),
         "configuration_frozen_without_recalibration": "pass",
         "cross_case_coverage": "pass" if metrics["coverage"] >= cfg["minimum_coverage"] else "fail",
         "cross_case_close_core_coverage": (
