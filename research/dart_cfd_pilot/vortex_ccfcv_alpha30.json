@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "method_name": "Cross-Case Frozen-Configuration Validation (CC-FCV)",
+  "case_id": "viscous_mfc_mach3_alpha30_f270_t000_t3000",
+  "alpha_deg": 30.0,
+  "step_start": 0,
+  "step_stop": 16200,
+  "step_stride": 270,
+  "snapshot_dt": 0.05,
+  "analysis_xlim": [-1.25, 4.75],
+  "analysis_ylim": [-1.25, 4.25],
+  "reference": {
+    "lambda_ci_quantile": 0.99,
+    "absolute_vorticity_quantile": 0.99,
+    "minimum_core_separation": 0.08,
+    "maximum_cores_per_frame": 128,
+    "maximum_reference_displacement": 0.25,
+    "maximum_track_gap_frames": 1,
+    "minimum_vorticity_correlation": 0.9,
+    "minimum_consistency_frames": 50,
+    "minimum_reference_rows": 10
+  },
+  "evaluation_frames": [1, 60],
+  "reference_match_radius": 0.12,
+  "close_pair_maximum_separation": 0.18,
+  "minimum_coverage": 0.70,
+  "minimum_close_member_coverage": 0.70,
+  "minimum_source_metric_retention": 0.80,
+  "maximum_detection_to_reference_ratio": 1.30,
+  "comparison_frames": [30, 45, 60]
+}
