@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calibrate close-core NMS on early MFC frames and test it on a temporal holdout."""
+"""Calibrated Multi-Criterion Core Detector (CMCD) with temporal holdout."""
 from __future__ import annotations
 
 import argparse
@@ -106,10 +106,10 @@ def draw_overlay(path,snapshot,detections,title,close_radius):
     cf=ax.contourf(x,y,masked.T,levels=np.linspace(-lim,lim,101),cmap="RdBu_r",extend="both")
     if detections:
         ax.scatter([d["x"] for d in detections],[d["y"] for d in detections],s=64,facecolors="none",
-                   edgecolors=["#ffbf00" if d["sign"]>0 else "#39e600" for d in detections],linewidths=1.7,label="Stage 13 centers")
+                   edgecolors=["#ffbf00" if d["sign"]>0 else "#39e600" for d in detections],linewidths=1.7,label="CMCD centers")
     if reference:
         ax.scatter([float(r["x_physical"]) for r in reference],[float(r["y_physical"]) for r in reference],
-                   marker="+",s=48,c="black",linewidths=1.3,label="Stage 8 physics catalogue")
+                   marker="+",s=48,c="black",linewidths=1.3,label="criteria-derived reference catalogue")
     if close:
         ax.scatter([float(reference[i]["x_physical"]) for i in sorted(close)],[float(reference[i]["y_physical"]) for i in sorted(close)],
                    marker="s",s=100,facecolors="none",edgecolors="#b400ff",linewidths=1.5,label="close-pair reference members")
@@ -160,14 +160,14 @@ def main():
     by_frame={fi:detect_snapshot(snapshots[fi],selected_cfg) for fi in selected_frames}
     for fi in selected_frames:
         draw_overlay(out/f"stage13_frame_{fi:04d}.png",snapshots[fi],by_frame[fi],
-                     f"MFC/ILES Stage 13: frame {fi}, step {snapshots[fi]['step']}",cfg["close_pair_maximum_separation"])
+                     f"MFC/ILES CMCD: frame {fi}, step {snapshots[fi]['step']}",cfg["close_pair_maximum_separation"])
     write_csv(out/"stage13_sweep.csv",sweep,list(sweep[0]))
     fields=["frame_index","source_step","time","detection_id","x_physical","y_physical","rotation_sign","radius","score","lambda_ci","gamma2","omega_ratio","matched_stage8","stage8_reference_id","reference_distance"]
     write_csv(out/"stage13_detections.csv",rows,fields);write_csv(out/"stage13_per_frame.csv",per_frame,list(per_frame[0]))
     gates={"temporal_holdout":"pass","holdout_stage8_coverage":"pass" if holdout_metrics["coverage"]>=cfg["minimum_holdout_stage8_coverage"] else "fail",
            "holdout_candidate_growth":"pass" if holdout_metrics["detection_to_reference_ratio"]<=cfg["maximum_holdout_detection_to_reference_ratio"] else "fail",
            "holdout_close_member_coverage":"pass" if holdout_metrics["close_member_coverage"]>=cfg["minimum_holdout_close_member_coverage"] else "fail"}
-    report={"schema_version":1,"status":"completed","created_at_utc":datetime.now(timezone.utc).isoformat(),
+    report={"schema_version":1,"method_name":"Calibrated Multi-Criterion Core Detector (CMCD)","status":"completed","created_at_utc":datetime.now(timezone.utc).isoformat(),
             "calibration_frames":calibration,"holdout_frames":holdout,"grid_configurations":len(sweep),
             "selected_configuration":selected_cfg,"calibration_metrics":calibration_metrics,
             "holdout_metrics":holdout_metrics,"full_sequence_metrics":full_metrics,"gates":gates,
