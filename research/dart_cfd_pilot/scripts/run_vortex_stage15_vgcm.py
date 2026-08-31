@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import maximum_filter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +27,7 @@ def load_sibling(name, filename):
 
 
 stage8 = load_sibling("stage8_stage15", "run_dart_stage8_physics_catalogue.py")
-stage14 = load_sibling("stage14_stage15", "run_vortex_stage14_baselines.py")
+stage14 = None
 
 
 def write_csv(path, rows, fields=None):
@@ -130,7 +129,12 @@ def variable_gamma(x, y, u, v, fluid, kernel_sizes, threshold):
 
 def raw_candidates(x, y, gamma, support, scale, radii, fluid, threshold, minimum_support, rotating=None, method="gamma"):
     score = np.abs(gamma)
-    peaks = (score == maximum_filter(np.where(np.isfinite(score), score, -np.inf), size=3, mode="nearest"))
+    finite_score = np.where(np.isfinite(score), score, -np.inf)
+    padded = np.pad(finite_score, 1, mode="edge")
+    local_maximum = np.maximum.reduce(
+        [padded[di:di + score.shape[0], dj:dj + score.shape[1]] for di in range(3) for dj in range(3)]
+    )
+    peaks = score == local_maximum
     mask = peaks & fluid & np.isfinite(score) & (score >= threshold) & (support >= minimum_support)
     if rotating is not None:
         mask &= rotating
@@ -236,6 +240,8 @@ def synthetic_invariance_check():
 
 
 def main():
+    global stage14
+    stage14 = load_sibling("stage14_stage15", "run_vortex_stage14_baselines.py")
     parser = argparse.ArgumentParser()
     parser.add_argument("--case-dir", type=Path, required=True)
     parser.add_argument("--mfc-root", type=Path, required=True)
