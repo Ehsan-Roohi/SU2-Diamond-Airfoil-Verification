@@ -1,9 +1,0 @@
-# Stage 16: rotating-region multi-peak deblending
-
-Stage 15 established a useful negative result. The Galilean-invariant variable-Gamma detector passed its synthetic invariance check but did not outperform the calibrated Q baseline on either total holdout coverage or close-core coverage. Stage 16 therefore stops tuning Gamma and tests a different hypothesis: close cores can be recovered by permitting multiple independently seeded peaks inside a physically rotating region.
-
-The detector uses positive Q and lambda-ci to define rotating regions, with thresholds computed only from positive field values so the large zero background cannot collapse the robust scale estimate. Local maxima from Q, lambda-ci, and absolute vorticity seed candidate subcores. Candidates retain the signed vorticity direction, are refined by a local Q/lambda-ci-weighted centroid, and are deblended with a small physical non-maximum-suppression radius.
-
-Only frames 1-30 select the seed quantile, source-support requirement, deblending radius, and candidate cap. Frames 31-60 remain untouched temporal holdout data. A controlled same-sign Lamb-Oseen pair suite reports the minimum resolved separation under bulk translation, imposed shear, and a pure-shear false-positive test. Physical comparison figures are mandatory for frames 30, 45, and 60.
-
-The terminal decision is predeclared. If the hybrid beats calibrated Q in both overall and close-core holdout coverage while controlling candidate density and passing the synthetic suite, it advances to independent cross-case validation. Otherwise Q is retained as the primary detector and further single-case detector tuning stops. In either outcome, independent expert labels and a second physical flow case are still required for publication claims.
