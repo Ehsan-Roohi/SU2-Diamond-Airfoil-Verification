@@ -39,4 +39,6 @@ def test_ccfcv_submit_has_flat_archive_and_fail_closed_inputs():
     assert 'ARCHIVE="${PROJECT_ROOT}/VORTEX_CCFCV_ALPHA30_${RUN_ID}_COMPLETE.tar.gz"' in source
     assert "RUN_OK_CCFCV_RAW_FIELDS.txt" in source
     assert "partial CC-FCV run exists" in source
+    assert "CCFCV_SCIENTIFIC_RC=" in source
+    assert '"${analysis_rc}" -eq 0 || "${analysis_rc}" -eq 8' in source
     assert '"${MFC_PYTHON}" +' not in source
