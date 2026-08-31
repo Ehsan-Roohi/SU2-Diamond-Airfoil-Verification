@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import distance_transform_edt, maximum_filter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +47,8 @@ def positive_quantile_threshold(field, fluid, quantile):
 
 
 def local_peak_mask(field, fluid):
+    from scipy.ndimage import maximum_filter
+
     safe = np.where(fluid & np.isfinite(field), field, -np.inf)
     return fluid & np.isfinite(field) & (safe == maximum_filter(safe, size=3, mode="nearest"))
 
@@ -68,6 +69,8 @@ def _refine_center(x, y, omega, q, lci, i, j, half_width):
 
 def region_candidates(snapshot, seed_quantile, low_quantile, boundary_margin_cells, refinement_half_width):
     """Find independently seeded subcores inside Q/lambda_ci-positive rotating regions."""
+    from scipy.ndimage import distance_transform_edt, maximum_filter
+
     q = snapshot["q"]
     lci = snapshot["lci"]
     omega_abs = snapshot["omega_abs"]
