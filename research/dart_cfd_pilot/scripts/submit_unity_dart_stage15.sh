@@ -25,7 +25,7 @@ readonly STAGE13_DIR="${DART_STAGE15_STAGE13_DIR:-${PROJECT_ROOT}/research/dart_
 readonly STAGE14_DIR="${DART_STAGE15_STAGE14_DIR:-${PROJECT_ROOT}/research/dart_cfd_pilot/results/63809195}"
 readonly RUN_ID="${SLURM_JOB_ID:-stage15-manual}"
 readonly OUTPUT_DIR="${PROJECT_ROOT}/research/dart_cfd_pilot/results/${RUN_ID}"
-readonly ARCHIVE="${PROJECT_ROOT}/research/dart_cfd_pilot/results/${RUN_ID}.tar.gz"
+readonly ARCHIVE="${PROJECT_ROOT}/STAGE15_VORTEX_${RUN_ID}_COMPLETE.tar.gz"
 readonly PYTHON="${MFC_ROOT}/build/venv/bin/python3"
 
 [[ -x "${PYTHON}" ]] || { echo "ERROR: pinned MFC Python not found: ${PYTHON}" >&2; exit 2; }
