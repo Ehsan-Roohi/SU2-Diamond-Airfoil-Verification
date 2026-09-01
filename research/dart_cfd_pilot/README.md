@@ -250,6 +250,22 @@ Continue to raw-field validation only if `stage3_report.json` records
 `claim_gate=temporal_signal_present_needs_raw_field_validation`. Otherwise,
 the off-the-shelf DART route is stopped rather than tuned against one movie.
 
+## Shock-Ridge-Aware CMCD solver-transfer audit
+
+The current physics-first detector revision is documented in
+[`SHOCK_RIDGE_AWARE_CMCD.md`](SHOCK_RIDGE_AWARE_CMCD.md).  It reuses the frozen
+AA-ACB-CMCD candidate generator and adds closed-Q-island, multiradius velocity
+winding, pressure-minimum, and thermodynamic shock-ridge vetoes.  The SU2
+Mach-3, alpha-40 SST-URANS checkpoint is a development negative control, not
+an independent validation case.  The runner differentiates on the native SU2
+O-grid and produces physical field figures plus a per-candidate rejection
+audit.  No SU2 rerun is required:
+
+```bash
+sbatch --export=ALL \
+  research/dart_cfd_pilot/scripts/submit_unity_vortex_shock_ridge_aware.sh
+```
+
 
 
 ## Stage 4: physics-gated track audit
@@ -376,4 +392,3 @@ The expected outcome is deliberately fail-closed: high precision with sparse
 coverage is recorded as
 `diagnostic_high_precision_sparse_vortex_localization`, not as validated
 comprehensive vortex tracking.
-
