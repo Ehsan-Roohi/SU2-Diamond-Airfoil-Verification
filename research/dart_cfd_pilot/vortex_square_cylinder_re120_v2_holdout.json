@@ -52,8 +52,8 @@
     "candidate_protocol": "vortex_analytic_positive_control.json",
     "spatial_configuration": "vortex_scale_adaptive_sra_cmcd.json",
     "temporal_configuration": "vortex_temporal_wide_window_tsa_sra_cmcd_v2.json",
-    "v2_freeze_commit": "0b895f34e05e0c7f990a8ed1a551c4755713dc1c",
-    "holdout_protocol_freeze_commit": "0b895f34e05e0c7f990a8ed1a551c4755713dc1c",
+    "local_preexecution_v2_and_holdout_freeze_commit": "0b895f34e05e0c7f990a8ed1a551c4755713dc1c",
+    "published_protocol_record_commit": "b6a782f772cb1da64096f2f339532d2ed296ad6c",
     "detector_recalibration_allowed": false,
     "development_case": "d2q9_lbm_square_cylinder_re100_prospective_holdout"
   },

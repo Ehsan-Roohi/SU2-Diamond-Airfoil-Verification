@@ -224,14 +224,14 @@ def test_square_re100_prospective_protocol_is_frozen_and_flat():
     assert protocol["acceptance_gates"]["strouhal_number_range"] == [0.155, 0.175]
     assert protocol["frequency_gate_provenance"]["frozen_before_first_Re100_execution"] is True
     assert protocol["frozen_detector_sources"]["detector_recalibration_allowed"] is False
-    assert protocol["frozen_detector_sources"]["prospective_protocol_freeze_commit"] == (
+    assert protocol["frozen_detector_sources"]["local_preexecution_protocol_freeze_commit"] == (
         "cf98501f6e79c7052a6ad48e9f9e8e680744d265"
     )
     submit = ROOT / "scripts" / "submit_unity_vortex_square_re100_prospective.sh"
     text = submit.read_text()
     assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_SQUARE_RE100_" in text
     assert "PYTHONNOUSERSITE=1" in text
-    assert "PROTOCOL_FREEZE_COMMIT" in text
+    assert "PUBLISHED_PROTOCOL_RECORD_COMMIT" in text
     assert "stage" not in submit.name
 
 
@@ -251,12 +251,12 @@ def test_square_re120_v2_holdout_is_frozen_before_execution():
     assert protocol["acceptance_gates"]["strouhal_number_range"] == [0.145, 0.175]
     assert protocol["frequency_gate_provenance"]["frozen_before_first_Re120_execution"] is True
     assert protocol["frozen_detector_sources"]["detector_recalibration_allowed"] is False
-    assert protocol["frozen_detector_sources"]["v2_freeze_commit"] == (
+    assert protocol["frozen_detector_sources"]["local_preexecution_v2_and_holdout_freeze_commit"] == (
         "0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
     )
     submit = ROOT / "scripts" / "submit_unity_vortex_square_re120_v2_holdout.sh"
     text = submit.read_text()
     assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_V2_SQUARE_RE120_" in text
-    assert "V2_FREEZE_COMMIT" in text
-    assert "HOLDOUT_FREEZE_COMMIT" in text
+    assert "LOCAL_PREEXECUTION_FREEZE_COMMIT" in text
+    assert "PUBLISHED_PROTOCOL_RECORD_COMMIT" in text
     assert "stage" not in submit.name
