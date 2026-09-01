@@ -186,6 +186,32 @@ def attach_geometry_clearance(runtime: dict, clearance: float) -> None:
         candidate["outside_wall"] = distance >= clearance
 
 
+def missed_strong_topology_candidates(audit: list[dict], cfg: dict) -> list[dict]:
+    """Expose likely false negatives without promoting them to detections.
+
+    This diagnostic was defined after the SU2 visualization failure was found.
+    It is intentionally kept separate from the frozen detector output and may
+    only motivate a later method revision validated on unseen data.
+    """
+    reasons = set(cfg["eligible_rejection_reasons"])
+    return [
+        row for row in audit
+        if not bool(row["accepted"])
+        and row["rejection_reason"] in reasons
+        and bool(row["q_island_pass"])
+        and float(row.get("wall_distance_over_d", 0.0)) >= float(cfg["minimum_wall_clearance_over_c"])
+        and int(row["winding_support"]) >= int(cfg["minimum_winding_ring_support"])
+        and float(row["compression_fraction"]) <= float(cfg["maximum_compression_fraction"])
+        and float(row["rotation_purity"]) >= float(cfg["minimum_rotation_purity"])
+        and float(row["sign_coherence"]) >= float(cfg["minimum_sign_coherence"])
+        and float(row["ring_coherence"]) >= float(cfg["minimum_ring_coherence"])
+        and float(row["radial_to_tangential"]) <= float(cfg["maximum_radial_to_tangential"])
+        and float(row["scale_persistence"]) >= float(cfg["minimum_scale_persistence"])
+        and float(row["hessian_compactness"]) >= float(cfg["minimum_hessian_compactness"])
+        and float(row["q_island_aspect_ratio"]) <= float(cfg["maximum_q_island_aspect_ratio"])
+    ]
+
+
 def run_detector(snapshot: dict, analytic_cfg: dict, spatial_cfg: dict, modules: dict):
     detections, runtime = modules["analytic"].detect(
         snapshot, analytic_cfg, spatial_cfg, modules
@@ -280,15 +306,23 @@ def load_su2_snapshots(checkpoint: Path, cfg: dict, geometry) -> list[dict]:
             raw = sra.read_su2_restart(archive, member, float(cfg["gamma"]))
             coordinates = np.column_stack((raw["x"], raw["y"]))
             if triangulation is None:
-                from scipy.spatial import Delaunay
-                triangulation = Delaunay(coordinates)
+                triangulation = sra.structured_ogrid_triangulation(
+                    coordinates,
+                    int(cfg["radial_points"]),
+                    int(cfg["circumferential_points"]),
+                )
                 coordinates0 = coordinates
             elif not np.array_equal(coordinates, coordinates0):
                 raise RuntimeError("SU2 O-grid coordinates change between snapshots")
             native = sra.derive_native_ogrid_fields(
                 raw, int(cfg["radial_points"]), int(cfg["circumferential_points"])
             )
-            fields = sra.interpolate_native_fields(triangulation, native, x, y)
+            fields = sra.interpolate_native_fields(
+                triangulation,
+                {name: native[name] for name in ("u", "v", "rho", "pressure")},
+                x,
+                y,
+            )
             finite = np.logical_and.reduce([
                 np.isfinite(fields[name]) for name in ("u", "v", "rho", "pressure")
             ])
@@ -301,52 +335,117 @@ def load_su2_snapshots(checkpoint: Path, cfg: dict, geometry) -> list[dict]:
                 "metadata": {"frame": frame, "member": member},
             })
             match = re.search(r"_(\d+)\.csv$", member)
-            rows.append({"frame": frame, "step": int(match.group(1)) if match else frame,
-                         "snapshot": snapshot, "visual": True, "member": member})
+            rows.append({
+                "frame": frame, "step": int(match.group(1)) if match else frame,
+                "snapshot": snapshot, "visual": True, "member": member,
+                "native_visual": {
+                    "coordinates": coordinates.copy(),
+                    "triangles": triangulation.triangles.copy(),
+                    "omega": native["omega"].copy(),
+                },
+            })
     return rows
 
 
 def draw_physical(path: Path, visuals: list[dict], cfg: dict, solver: str) -> None:
     import matplotlib.pyplot as plt
+    import matplotlib.tri as mtri
 
     fig, axes = plt.subplots(len(visuals), 1, figsize=(14.5, 4.4 * len(visuals)), constrained_layout=True)
     axes = np.atleast_1d(axes)
     for axis, row in zip(axes, visuals):
-        field = np.where(row["fluid"], row["omega"], np.nan)
-        limit = max(float(np.nanpercentile(np.abs(field), 99.4)), 1.0e-12)
-        axis.contourf(row["x"], row["y"], field.T, levels=np.linspace(-limit, limit, 101),
-                      cmap="RdBu_r", extend="both")
-        shock = row.get("shock_ridge_mask")
-        if shock is not None and np.any(shock):
-            axis.contour(row["x"], row["y"], shock.T.astype(float), levels=[0.5],
-                         colors="#b000d0", linewidths=0.8)
+        native = row.get("native_visual")
+        if solver == "su2" and native is not None:
+            coordinates = native["coordinates"]
+            triangles = native["triangles"]
+            omega = native["omega"]
+            distance = diamond_surface_distance(coordinates[:, 0], coordinates[:, 1])
+            triangulation = mtri.Triangulation(
+                coordinates[:, 0], coordinates[:, 1], triangles.copy()
+            )
+            triangulation.set_mask(~np.all(distance[triangles] >= 0.02, axis=1))
+            roi = (
+                (coordinates[:, 0] >= float(cfg["figure_xlim"][0]))
+                & (coordinates[:, 0] <= float(cfg["figure_xlim"][1]))
+                & (coordinates[:, 1] >= float(cfg["figure_ylim"][0]))
+                & (coordinates[:, 1] <= float(cfg["figure_ylim"][1]))
+                & (distance >= 0.025)
+                & np.isfinite(omega)
+            )
+            limit = max(float(np.percentile(np.abs(omega[roi]), 99.0)), 1.0e-12)
+            axis.tricontourf(
+                triangulation, omega, levels=np.linspace(-limit, limit, 101),
+                cmap="RdBu_r", extend="both",
+            )
+        else:
+            field = np.where(row["fluid"], row["omega"], np.nan)
+            limit = max(float(np.nanpercentile(np.abs(field), 99.4)), 1.0e-12)
+            axis.contourf(
+                row["x"], row["y"], field.T,
+                levels=np.linspace(-limit, limit, 101), cmap="RdBu_r", extend="both",
+            )
+            shock = row.get("shock_ridge_mask")
+            if shock is not None and np.any(shock):
+                axis.contour(
+                    row["x"], row["y"], shock.T.astype(float), levels=[0.5],
+                    colors="#b000d0", linewidths=0.8,
+                )
         reference = row["reference"]
-        raw_gamma2 = row.get("raw_gamma2_reference", [])
         detections = row["detections"]
-        if raw_gamma2:
-            axis.scatter([r["x"] for r in raw_gamma2], [r["y"] for r in raw_gamma2],
-                         marker="+", s=32, c="0.35", linewidths=0.8,
-                         label=r"raw $\Gamma_2$ artifacts (unqualified)")
         if reference:
             axis.scatter([r["x"] for r in reference], [r["y"] for r in reference],
-                         marker="+", s=72, c="black", linewidths=1.4, label=r"$\Gamma_2$ reference")
+                         marker="x", s=72, c="black", linewidths=1.4,
+                         label=r"independent $\Gamma_2$ reference")
         if detections:
             colors = ["#0055cc" if int(r["sign"]) < 0 else "#d62728" for r in detections]
             axis.scatter([r["x"] for r in detections], [r["y"] for r in detections],
                          s=62, facecolors="none", edgecolors=colors, linewidths=1.5,
                          label="TSA-SRA-CMCD-v2")
+        missed = row.get("missed_strong_topology", [])
+        if missed:
+            axis.scatter(
+                [r["x"] for r in missed], [r["y"] for r in missed],
+                s=150, facecolors="none", edgecolors="#ffbf00", linewidths=2.4,
+                label="strong-topology miss (not accepted)",
+            )
+            for rank, candidate in enumerate(missed, 1):
+                axis.annotate(
+                    f"M{rank}", (candidate["x"], candidate["y"]),
+                    xytext=(7, 7), textcoords="offset points", color="#8a5500",
+                    fontsize=9, fontweight="bold",
+                )
         axis.set(xlim=cfg["figure_xlim"], ylim=cfg["figure_ylim"], xlabel="x/c", ylabel="y/c")
         axis.set_aspect("equal")
-        axis.set_title(
-            f"{solver.upper()} frame {row['frame']} | TP={row['metrics']['true_positive']} "
-            f"FP={row['metrics']['false_positive']} FN={row['metrics']['false_negative']}"
-        )
+        if solver == "su2":
+            axis.set_title(
+                f"SU2 frame {row['frame']} | accepted={len(detections)} | "
+                f"strong-topology misses={len(missed)}"
+            )
+        else:
+            axis.set_title(
+                f"MFC frame {row['frame']} | TP={row['metrics']['true_positive']} "
+                f"FP={row['metrics']['false_positive']} FN={row['metrics']['false_negative']}"
+            )
         handles, labels = axis.get_legend_handles_labels()
         if handles:
             axis.legend(loc="upper right", fontsize=8)
-    fig.suptitle("Frozen cross-solver vortex-core audit", fontsize=15)
+    fig.suptitle("Frozen TSA-SRA-CMCD-v2 accepted vortex cores", fontsize=15)
     fig.savefig(path, dpi=230, bbox_inches="tight")
     plt.close(fig)
+
+
+def diamond_surface_distance(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Euclidean distance to the four segments of the unit-chord diamond."""
+    points = np.column_stack((np.asarray(x, dtype=float), np.asarray(y, dtype=float)))
+    height = 0.0702704174
+    vertices = np.asarray(((0.0, 0.0), (0.5, height), (1.0, 0.0), (0.5, -height)))
+    distance = np.full(points.shape[0], np.inf)
+    for start, end in zip(vertices, np.roll(vertices, -1, axis=0)):
+        segment = end - start
+        parameter = np.clip(((points - start) @ segment) / float(segment @ segment), 0.0, 1.0)
+        projection = start + parameter[:, None] * segment
+        distance = np.minimum(distance, np.linalg.norm(points - projection, axis=1))
+    return distance
 
 
 def main() -> int:
@@ -419,19 +518,27 @@ def main() -> int:
                 runtime["snapshot"], int(case_cfg["gamma2_radius_cells"]),
                 config["reference"], (case_cfg["analysis_xlim"], case_cfg["analysis_ylim"]),
             )
-            # SU2 alpha=40 was predeclared as a shock-rich negative control.
-            # Raw Gamma2 components are an artifact census, never truth labels.
+            # SU2 alpha=40 is an unlabelled shock-rich diagnostic. Raw Gamma2
+            # components are an artifact census, never truth labels.
             reference = []
+        missed_topology = (
+            missed_strong_topology_candidates(
+                runtime["audit"], case_cfg["missed_strong_topology_audit"]
+            )
+            if args.solver == "su2" else []
+        )
         records.append({
             "frame_index": int(source["frame"]), "step": int(source["step"]),
             "source_step": int(source["step"]), "reference": reference,
             "raw_gamma2_reference": raw_gamma2_reference,
+            "missed_strong_topology": missed_topology,
             "base_detections": list(detections), "detections": list(detections),
             "runtime": {"audit": runtime["audit"], "diagnostics": runtime["diagnostics"]},
             "visual": {
                 "frame": int(source["frame"]), "x": snapshot["x"], "y": snapshot["y"],
                 "fluid": snapshot["fluid"], "omega": runtime["snapshot"]["omega"],
                 "gamma2": gamma2, "shock_ridge_mask": runtime["snapshot"]["shock_ridge_mask"],
+                "native_visual": source.get("native_visual"),
             } if source["visual"] else None,
         })
 
@@ -452,6 +559,7 @@ def main() -> int:
     detector_rows: list[dict] = []
     reference_rows: list[dict] = []
     raw_gamma2_rows: list[dict] = []
+    missed_topology_rows: list[dict] = []
     per_frame: list[dict] = []
     visuals: list[dict] = []
     totals = {key: 0 for key in (
@@ -479,6 +587,16 @@ def main() -> int:
             reference_rows.append({"frame_index": frame, "source_step": step, "rank": rank, **row})
         for rank, row in enumerate(record["raw_gamma2_reference"], 1):
             raw_gamma2_rows.append({"frame_index": frame, "source_step": step, "rank": rank, **row})
+        for rank, row in enumerate(record["missed_strong_topology"], 1):
+            missed_topology_rows.append({
+                "frame_index": frame, "source_step": step, "rank": rank,
+                "x": row["x"], "y": row["y"], "rotation_sign": row["sign"],
+                "rejection_reason": row["rejection_reason"],
+                "winding_support": row["winding_support"],
+                "rotation_purity": row["rotation_purity"],
+                "q_island_aspect_ratio": row["q_island_aspect_ratio"],
+                "wall_distance_over_c": row.get("wall_distance_over_d"),
+            })
         for rank, row in enumerate(detections, 1):
             detector_rows.append({
                 "frame_index": frame, "source_step": step, "rank": rank,
@@ -497,23 +615,26 @@ def main() -> int:
         if record["visual"] is not None:
             visuals.append({**record["visual"], "reference": record["reference"],
                             "raw_gamma2_reference": record["raw_gamma2_reference"],
-                            "detections": detections, "metrics": metrics})
+                            "detections": detections,
+                            "missed_strong_topology": record["missed_strong_topology"],
+                            "metrics": metrics})
 
     negative_control = case_cfg.get("evaluation_role") == "development_negative_control"
+    unlabelled = case_cfg.get("ground_truth_status", "").startswith("unlabelled")
     precision = (
-        None if negative_control
+        None if negative_control or unlabelled
         else totals["true_positive"] / max(totals["detection_count"], 1)
     )
     recall = (
-        None if negative_control
+        None if negative_control or unlabelled
         else totals["true_positive"] / max(totals["reference_count"], 1)
     )
     sign_accuracy = (
-        None if negative_control
+        None if negative_control or unlabelled
         else totals["correct_rotation_sign"] / max(totals["true_positive"], 1)
     )
     f1 = (
-        None if negative_control
+        None if negative_control or unlabelled
         else 2.0 * precision * recall / max(precision + recall, 1.0e-300)
     )
     localization = math.sqrt(localization_squared_error / max(totals["true_positive"], 1))
@@ -523,6 +644,7 @@ def main() -> int:
         "localization_rmse_over_c": localization,
         "near_body_false_positives": near_body_false_positives,
         "raw_gamma2_artifact_components": len(raw_gamma2_rows),
+        "missed_strong_topology_candidates": len(missed_topology_rows),
         "temporally_recovered_detections": sum(
             bool(row["temporally_recovered"]) for row in temporal_audit
         ),
@@ -532,25 +654,33 @@ def main() -> int:
         "raw_input_integrity": "pass",
         "frozen_detector": "pass",
         "reference_population": (
-            "not_applicable_negative_control" if negative_control
+            "not_applicable_unlabelled" if unlabelled
+            else "not_applicable_negative_control" if negative_control
             else ("pass" if totals["reference_count"] >= int(gate_cfg["minimum_reference_vortices"]) else "fail")
         ),
         "detection_precision": (
-            "not_applicable_negative_control" if negative_control
+            "not_applicable_unlabelled" if unlabelled
+            else "not_applicable_negative_control" if negative_control
             else ("pass" if precision >= float(gate_cfg["minimum_precision"]) else "fail")
         ),
         "detection_recall": (
-            "not_applicable_negative_control" if negative_control
+            "not_applicable_unlabelled" if unlabelled
+            else "not_applicable_negative_control" if negative_control
             else ("pass" if recall >= float(gate_cfg["minimum_recall"]) else "fail")
         ),
         "rotation_sign_accuracy": (
-            "not_applicable_negative_control" if negative_control
+            "not_applicable_unlabelled" if unlabelled
+            else "not_applicable_negative_control" if negative_control
             else ("pass" if sign_accuracy >= float(gate_cfg["minimum_rotation_sign_accuracy"]) else "fail")
         ),
         "near_body_false_positives": "pass" if near_body_false_positives <= int(gate_cfg["maximum_near_body_false_positives"]) else "fail",
         "negative_control_false_vortices": (
             "pass" if negative_control and totals["detection_count"] == 0
             else ("fail" if negative_control else "not_applicable")
+        ),
+        "strong_topology_false_negative_audit": (
+            "fail" if unlabelled and missed_topology_rows else
+            "not_applicable" if not unlabelled else "pass"
         ),
         "time_resolved_sequence": "pass" if len(records) >= int(gate_cfg["minimum_temporal_frames"]) else "fail",
         "temporal_detector_exercised": "pass" if temporal_ran else "fail",
@@ -562,7 +692,10 @@ def main() -> int:
         ["reference_population", "detection_precision", "detection_recall",
          "rotation_sign_accuracy", "near_body_false_positives"]
     )
-    quality_pass = all(gates[key] == "pass" for key in quality_keys)
+    quality_pass = (
+        False if unlabelled
+        else all(gates[key] == "pass" for key in quality_keys)
+    )
     report = {
         "schema_version": 1, "status": "completed",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -571,16 +704,23 @@ def main() -> int:
         "input": input_provenance, "frozen_sources": config["frozen_sources"],
         "configuration": case_cfg, "reference_protocol": config["reference"],
         "negative_control": negative_control,
+        "unlabelled_diagnostic": unlabelled,
         "detection_metrics": metrics, "per_frame": per_frame,
         "gates": gates,
         "diagnostic_quality_gate": "pass" if quality_pass else "fail",
         "claim_gate": (
+            "frozen_detector_missed_strong_su2_topology_requires_method_revision"
+            if unlabelled and missed_topology_rows else
+            "unlabelled_su2_diagnostic_requires_adjudication"
+            if unlabelled else
             "retrospective_cross_solver_diagnostic_pass_not_independent"
             if quality_pass else "retrospective_cross_solver_diagnostic_failed"
         ),
         "limitations": [
             "The alpha-40 airfoil cases were visible during method development and are not independent holdouts.",
             "Gamma2 is an independent kinematic reference, not human-annotated ground truth.",
+            "The SU2 case is unlabelled and is not a zero-vortex negative control.",
+            "Strong-topology misses are post-inspection development diagnostics, not accepted detections.",
             "The SU2 archive contains two adjacent snapshots, so TSA temporal recovery cannot be validated on SU2.",
             "This is two-dimensional vortex-core localization, not three-dimensional vortex-tube segmentation."
         ],
@@ -591,6 +731,13 @@ def main() -> int:
     if raw_gamma2_rows:
         write_csv(output / f"{slug}_raw_gamma2_artifact_census.csv", raw_gamma2_rows,
                   ["frame_index", "source_step", "rank", "x", "y", "sign", "gamma2", "component_cells"])
+    if missed_topology_rows:
+        write_csv(
+            output / f"{slug}_missed_strong_topology.csv", missed_topology_rows,
+            ["frame_index", "source_step", "rank", "x", "y", "rotation_sign",
+             "rejection_reason", "winding_support", "rotation_purity",
+             "q_island_aspect_ratio", "wall_distance_over_c"],
+        )
     write_csv(output / f"{slug}_tsa_sra_cmcd_v2_detections.csv", detector_rows,
               ["frame_index", "source_step", "rank", "x", "y", "rotation_sign", "q_score",
                "shock_ridge_distance_cells", "wall_distance_over_c", "temporally_recovered"])

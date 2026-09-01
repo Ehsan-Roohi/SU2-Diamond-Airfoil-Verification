@@ -10,30 +10,35 @@ reported as an independent holdout.
 
 - MFC uses the pre-existing 61-frame Stage-8 physics catalogue. That catalogue
   was frozen before this cross-solver runner was written.
-- SU2 is the predeclared shock-rich negative control. The raw Gamma2 component
-  census is retained to expose its known shock/grid artifacts, but those
-  components are not treated as vortex truth.
+- SU2 is unlabelled. It must not be treated as a zero-vortex negative control.
+  The raw Gamma2 component census is retained to expose shock/grid artifacts,
+  but those components are neither accepted detections nor vortex truth.
 - MFC centres are matched one-to-one within `0.08 c`; precision, recall, F1,
   rotation sign, localization error and near-body false positives are reported.
-- SU2 passes its negative-control gate only when the detector returns no false
-  vortex cores. Its two adjacent restart states cannot exercise the temporal
-  part of TSA-SRA-CMCD-v2, and the temporal gate therefore fails closed.
-- The cylinder-derived body exclusion is transferred geometrically: its
-  original `0.75 D` centre-radius rule corresponds to a `0.25 D` wall
-  clearance. The airfoil runner computes that clearance from the exact diamond
-  mask instead of pretending the body is circular.
+- The SU2 audit reports strong closed-Q/multiring-winding candidates rejected
+  by the frozen detector as possible false negatives. Its two adjacent restart
+  states cannot exercise the temporal part of TSA-SRA-CMCD-v2, and the temporal
+  gate therefore fails closed.
+- The airfoil runner computes wall distance from the exact diamond mask instead
+  of pretending the body is circular. The former cylinder-equivalent `0.25 c`
+  diagnostic is retained only for provenance and is not used to declare an
+  airfoil vortex false.
 
 ## Local SU2 result
 
-The raw checkpoint contains 740 Q candidates per snapshot and 306 raw Gamma2
-components across the two states. All selected candidates fail the frozen
-closed-island, multi-radius winding, or pressure-corroboration gates. The final
-detector count is zero, which passes the predeclared negative-control false-core
-gate. Precision and recall are not defined for a zero-vortex negative control.
+The corrected native-connectivity audit removes nonphysical triangles spanning
+the O-grid hole and omits unqualified Gamma2 `+` markers from the accepted-core
+figure. The frozen detector still returns zero cores, but each snapshot contains
+one rejected candidate near `(x/c,y/c)=(0.9574,0.0944)` with a closed Q island,
+three-of-three winding support, rotation purity about `0.71`, unit sign/ring
+coherence, and unit scale persistence. It was rejected because the pressure
+minimum is displaced while the core overlaps the detected shock ridge.
 
-This is useful evidence that the frozen method does not mistake the prominent
-shock ridges and O-grid interpolation structure for vortices. It is not a
-positive-vortex or temporal SU2 validation.
+Therefore the former `zero false vortex` interpretation is withdrawn. The
+correct claim gate is
+`frozen_detector_missed_strong_su2_topology_requires_method_revision`. The
+yellow ring in the physical figure marks a likely false negative, not an
+accepted detection or ground truth label.
 
 ## Unity reproduction
 
@@ -56,8 +61,8 @@ and environment provenance.
 
 ## Publication boundary
 
-A positive MFC result plus a clean SU2 negative-control result would support
-solver-transfer robustness. It still cannot establish an independent JCP-level
-claim because both alpha-40 cases were visible during development. A future
-paper must add a frozen, time-resolved SU2 or MFC airfoil sequence that was not
-used to define any detector rule.
+A positive MFC result and a corrected shock-embedded rescue that survives the
+existing analytic controls and a new unseen time-resolved airfoil case could
+support solver-transfer robustness. The present SU2 snapshots are a failure
+analysis, not a validation result, because they were inspected while defining
+the next rule and contain only two adjacent times.

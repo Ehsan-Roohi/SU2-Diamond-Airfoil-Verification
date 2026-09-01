@@ -22,7 +22,7 @@ raster.  This avoids Delaunay-triangle derivative artifacts.
 
 ## Scientific role
 
-The alpha-40 SU2 checkpoint is a development negative control.  It informed
+The alpha-40 SU2 checkpoint is an unlabelled development diagnostic. It informed
 the thermodynamic ridge veto and is permanently excluded from independent
 validation.  Its two restart states are adjacent and nearly identical, so
 exact candidate persistence between them is explicitly reported as temporal
@@ -49,7 +49,7 @@ invariance bug in the original winding implementation: multiplying vector
 phase winding by vorticity sign rejected all clockwise vortices.  SRA-CMCD now
 uses absolute phase winding for topology and signed tangential velocity for
 rotation direction.  This correction changes no numerical threshold and must
-be rechecked on both the SU2 negative control and all positive controls.
+be rechecked on both the unlabelled SU2 diagnostic and all positive controls.
 
 The analytic audit also exposed an artificial fixed-window failure for a
 co-rotating pair separated by `0.16c`. The positive-`Q` island test now begins

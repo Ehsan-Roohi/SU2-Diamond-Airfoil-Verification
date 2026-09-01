@@ -12,7 +12,7 @@
     "detector_recalibration_allowed": false
   },
   "reference": {
-    "criterion": "solver-specific: pre-existing Stage-8 physics catalogue for MFC; raw Gamma2 artifact census plus zero-vortex negative-control declaration for SU2",
+    "criterion": "solver-specific: pre-existing Stage-8 physics catalogue for MFC; unlabelled native-topology failure audit plus raw Gamma2 artifact census for SU2",
     "absolute_gamma2_threshold": 0.6366197723675814,
     "minimum_component_cells": 3,
     "match_radius_over_c": 0.08,
@@ -46,8 +46,8 @@
   },
   "su2": {
     "case_id": "su2_urans_sst_mach3_alpha40_t11999_t12000_retrospective",
-    "evaluation_role": "development_negative_control",
-    "negative_control_basis": "the two adjacent URANS states were predeclared as a shock-rich non-vortex control; raw Gamma2 components are retained only as an artifact census",
+    "evaluation_role": "retrospective_shock_interacting_unlabelled_diagnostic",
+    "ground_truth_status": "unlabelled; this case must not be treated as a zero-vortex negative control",
     "gamma": 1.4,
     "restart_members": [
       "restart_medium_halfdt_11999.csv",
@@ -61,6 +61,23 @@
     "figure_ylim": [-1.0, 1.2],
     "raster_spacing": 0.003703703703703704,
     "gamma2_radius_cells": 4,
-    "equivalent_cylinder_wall_clearance_over_c": 0.25
+    "equivalent_cylinder_wall_clearance_over_c": 0.25,
+    "missed_strong_topology_audit": {
+      "role": "development-only failure analysis after visual inspection; not an accepted detection and not an independent validation result",
+      "eligible_rejection_reasons": [
+        "pressure_minimum_not_corroborated",
+        "thermodynamic_shock_ridge_proximity"
+      ],
+      "minimum_wall_clearance_over_c": 0.05,
+      "minimum_winding_ring_support": 3,
+      "maximum_compression_fraction": 0.1,
+      "minimum_rotation_purity": 0.65,
+      "minimum_sign_coherence": 0.9,
+      "minimum_ring_coherence": 0.9,
+      "maximum_radial_to_tangential": 0.75,
+      "minimum_scale_persistence": 0.999,
+      "minimum_hessian_compactness": 0.1,
+      "maximum_q_island_aspect_ratio": 2.2
+    }
   }
 }

@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "run_vortex_mfc_su2_cross_solver_audit.py"
@@ -24,6 +26,8 @@ def test_cross_solver_protocol_is_frozen_and_retrospective():
     assert "Stage-8 physics catalogue" in cfg["reference"]["criterion"]
     assert cfg["mfc"]["step_stop"] == 16200
     assert len(cfg["su2"]["restart_members"]) == 2
+    assert cfg["su2"]["evaluation_role"] != "development_negative_control"
+    assert cfg["su2"]["ground_truth_status"].startswith("unlabelled")
 
 
 def test_matching_is_spatial_and_rotation_sign_is_a_separate_metric():
@@ -77,3 +81,48 @@ def test_unity_archive_is_flat_and_named_by_method_scope():
     assert "--solver su2" in text
     assert "--reference-catalogue" in text
     assert "PYTHONNOUSERSITE=1" in text
+
+
+def test_structured_ogrid_triangulation_preserves_hole_and_periodic_seam():
+    su2_script = ROOT / "scripts" / "run_vortex_shock_ridge_aware_su2.py"
+    spec = importlib.util.spec_from_file_location("cross_solver_su2_connectivity", su2_script)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    radial, circumferential = 2, 8
+    triangles = module.structured_ogrid_triangles(radial, circumferential)
+    # Two triangles per logical cell, including the periodic last-to-first cell.
+    assert triangles.shape == (2 * circumferential, 3)
+    edges = {
+        tuple(sorted((int(a), int(b))))
+        for tri in triangles
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0]))
+    }
+    assert (0, circumferential - 1) in edges
+    # No chord is allowed across the airfoil/annulus hole.
+    assert (0, circumferential // 2) not in edges
+
+
+def test_strong_topology_audit_exposes_miss_without_accepting_it():
+    module = load_module()
+    cfg = json.loads((ROOT / "vortex_mfc_su2_cross_solver_audit.json").read_text())[
+        "su2"
+    ]["missed_strong_topology_audit"]
+    strong = {
+        "accepted": False,
+        "rejection_reason": "pressure_minimum_not_corroborated",
+        "q_island_pass": True,
+        "q_island_aspect_ratio": 1.8,
+        "wall_distance_over_d": 0.08,
+        "winding_support": 3,
+        "compression_fraction": 0.01,
+        "rotation_purity": 0.8,
+        "sign_coherence": 1.0,
+        "ring_coherence": 1.0,
+        "radial_to_tangential": 0.5,
+        "scale_persistence": 1.0,
+        "hessian_compactness": 0.2,
+    }
+    weak = {**strong, "scale_persistence": 1.0 / 3.0}
+    assert module.missed_strong_topology_candidates([strong, weak], cfg) == [strong]
+    assert strong["accepted"] is False
