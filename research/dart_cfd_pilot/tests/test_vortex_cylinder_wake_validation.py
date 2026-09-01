@@ -211,3 +211,52 @@ def test_cross_geometry_protocol_is_frozen_and_submission_is_flat():
     assert "HOLDOUT_PROTOCOL_FREEZE_COMMIT" in text
     assert "PYTHONNOUSERSITE=1" in text
     assert "stage" not in submit.name
+
+
+def test_square_re100_prospective_protocol_is_frozen_and_flat():
+    protocol = json.loads(
+        (ROOT / "vortex_square_cylinder_re100_prospective_holdout.json").read_text()
+    )
+    assert protocol["solver"]["obstacle_shape"] == "square"
+    assert protocol["solver"]["reynolds_number"] == 100.0
+    assert protocol["solver"]["blockage_ratio"] == 0.05
+    assert protocol["validation_role"] == "prospective_holdout"
+    assert protocol["acceptance_gates"]["strouhal_number_range"] == [0.155, 0.175]
+    assert protocol["frequency_gate_provenance"]["frozen_before_first_Re100_execution"] is True
+    assert protocol["frozen_detector_sources"]["detector_recalibration_allowed"] is False
+    assert protocol["frozen_detector_sources"]["prospective_protocol_freeze_commit"] == (
+        "cf98501f6e79c7052a6ad48e9f9e8e680744d265"
+    )
+    submit = ROOT / "scripts" / "submit_unity_vortex_square_re100_prospective.sh"
+    text = submit.read_text()
+    assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_SQUARE_RE100_" in text
+    assert "PYTHONNOUSERSITE=1" in text
+    assert "PROTOCOL_FREEZE_COMMIT" in text
+    assert "stage" not in submit.name
+
+
+def test_square_re120_v2_holdout_is_frozen_before_execution():
+    temporal = json.loads(
+        (ROOT / "vortex_temporal_wide_window_tsa_sra_cmcd_v2.json").read_text()
+    )
+    protocol = json.loads(
+        (ROOT / "vortex_square_cylinder_re120_v2_holdout.json").read_text()
+    )
+    assert temporal["lookaround_frames"] == 4
+    assert temporal["maximum_convection_speed_over_u_infinity"] == 1.30
+    assert temporal["future_case_recalibration_allowed"] is False
+    assert temporal["gamma2_used_by_detector"] is False
+    assert protocol["validation_role"] == "prospective_holdout"
+    assert protocol["solver"]["reynolds_number"] == 120.0
+    assert protocol["acceptance_gates"]["strouhal_number_range"] == [0.145, 0.175]
+    assert protocol["frequency_gate_provenance"]["frozen_before_first_Re120_execution"] is True
+    assert protocol["frozen_detector_sources"]["detector_recalibration_allowed"] is False
+    assert protocol["frozen_detector_sources"]["v2_freeze_commit"] == (
+        "0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
+    )
+    submit = ROOT / "scripts" / "submit_unity_vortex_square_re120_v2_holdout.sh"
+    text = submit.read_text()
+    assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_V2_SQUARE_RE120_" in text
+    assert "V2_FREEZE_COMMIT" in text
+    assert "HOLDOUT_FREEZE_COMMIT" in text
+    assert "stage" not in submit.name
