@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "method_name": "Frozen SRA-CMCD analytic positive-control benchmark",
+  "case_role": "predeclared analytic and adversarial characterization; no threshold fitting",
+  "gamma": 1.4,
+  "domain": [-1.0, 1.0, -1.0, 1.0],
+  "grid_spacing": 0.01,
+  "gaussian_sigmas": [0.0, 1.0, 2.0],
+  "ground_truth_match_radius": 0.05,
+  "vortex_core_radius": 0.08,
+  "vortex_circulation": 0.8,
+  "velocity_noise_levels": [0.0, 0.01, 0.03],
+  "close_pair_separations": [0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.24],
+  "shock_vortex_offsets": [0.04, 0.08, 0.12, 0.16, 0.24],
+  "base_physics_configuration": {
+    "criterion": "q",
+    "snr": 4.0,
+    "nms_radius": 0.06
+  },
+  "candidate_budget_configuration": {
+    "minimum_detections": 30,
+    "maximum_detections": 48,
+    "minimum_log_score_gap": 0.4,
+    "tail_score_fraction": 0.75
+  },
+  "artifact_veto_configuration": {
+    "local_patch_radius_cells": 3,
+    "ring_radius_cells": 3.0,
+    "ring_samples": 24,
+    "scale_peak_fraction": 0.8,
+    "minimum_wall_distance_cells": 2.5,
+    "maximum_compression_fraction": 0.6,
+    "minimum_rotation_purity": 0.1,
+    "minimum_sign_coherence": 0.6,
+    "minimum_ring_coherence": 0.6,
+    "minimum_ring_valid_fraction": 0.5,
+    "maximum_radial_to_tangential": 1.5,
+    "minimum_scale_persistence": 0.6666666667,
+    "minimum_hessian_compactness": 0.05,
+    "minimum_topology_support_fraction": 0.6
+  },
+  "sra_configuration_source": "vortex_shock_ridge_aware_cmcd.json",
+  "acceptance_gates": {
+    "minimum_isolated_recall": 0.9,
+    "minimum_isolated_precision": 1.0,
+    "minimum_clean_close_pair_separation": 0.12,
+    "minimum_close_pair_member_recall": 0.8,
+    "minimum_far_from_shock_recall": 0.8,
+    "maximum_negative_control_false_positives": 0,
+    "minimum_rotation_sign_accuracy": 1.0
+  },
+  "future_case_recalibration_allowed": false
+}

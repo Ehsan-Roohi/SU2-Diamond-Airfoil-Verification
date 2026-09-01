@@ -10,8 +10,8 @@ The revision does not change the frozen Q candidate generator or adaptive
 candidate budget.  It adds four fail-closed requirements:
 
 1. the Q component around a candidate is closed and not strongly elongated;
-2. residual velocity winds consistently on at least two of three physical
-   rings;
+2. residual velocity has unit absolute phase winding and sign-consistent
+   tangential motion on at least two of three physical rings;
 3. a nearby pressure minimum is corroborated on at least two rings; and
 4. the candidate is farther than eight raster cells from a simultaneous
    dimensionless pressure-gradient and entropy-gradient ridge.
@@ -43,6 +43,30 @@ closed-loop and pressure corroboration, and zero after the thermodynamic
 shock-ridge veto.  The rejected last candidate was 7.07 raster cells from the
 pressure/entropy ridge.  This is a successful negative-control outcome, not a
 vortex-detection validation result.
+
+The analytic positive-control audit subsequently exposed a directional
+invariance bug in the original winding implementation: multiplying vector
+phase winding by vorticity sign rejected all clockwise vortices.  SRA-CMCD now
+uses absolute phase winding for topology and signed tangential velocity for
+rotation direction.  This correction changes no numerical threshold and must
+be rechecked on both the SU2 negative control and all positive controls.
+
+The analytic audit also exposed an artificial fixed-window failure for a
+co-rotating pair separated by `0.16c`. The positive-`Q` island test now begins
+with the original 16-cell window and expands, without changing its threshold,
+up to 48 cells only when the connected component reaches an artificial window
+edge. A component reaching the physical domain boundary or the maximum window
+remains open, so shock-aligned ridges still fail closed.
+
+Pressure corroboration also requires the detected rotation center and the
+local pressure minimum to lie within two raster cells. A displacement up to
+three cells is allowed only when an opposite-sign partner with comparable
+strength independently passes the island, winding, pressure-ring, and
+shock-distance checks. Within a ten-cell neighborhood, a same-sign peak below
+65% of a stronger peak is rejected as a subordinate when its pressure minimum
+is displaced by more than two cells. This rejects noise satellites without
+enlarging NMS, while equal-strength co-rotating pairs and corroborated dipoles
+remain separate.
 
 ## Unity execution
 
