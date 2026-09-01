@@ -83,9 +83,20 @@ def recover(records: list[dict], cfg: dict, protocol: dict) -> list[dict]:
                 continue
             count, checks = physics_support(candidate, cfg)
             supports = temporal_supports(candidate, frame_index, records, cfg, protocol)
-            outside_wall = math.hypot(
-                float(candidate["x"]), float(candidate["y"])
-            ) >= wall_radius
+            # Cylinder benchmarks infer wall clearance from the radial
+            # coordinate. Cross-solver geometry adapters may instead attach a
+            # precomputed outside-wall decision or exact mask distance. The
+            # fallback preserves the frozen cylinder behaviour byte-for-byte.
+            declared_outside_wall = candidate.get("outside_wall")
+            wall_distance = candidate.get("wall_distance_over_d")
+            if declared_outside_wall is not None:
+                outside_wall = bool(declared_outside_wall)
+            else:
+                if wall_distance is None:
+                    wall_distance = math.hypot(
+                        float(candidate["x"]), float(candidate["y"])
+                    )
+                outside_wall = float(wall_distance) >= wall_radius
             eligible_reason = str(candidate["rejection_reason"]) in allowed_reasons
             duplicate = any(
                 int(row["sign"]) == int(candidate["sign"])
