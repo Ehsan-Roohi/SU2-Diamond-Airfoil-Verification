@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +43,7 @@ def test_lbm_solver_compiles_and_writes_smoke_sequence(tmp_path):
 
 
 def test_gamma2_reference_finds_a_lamb_oseen_core():
+    pytest.importorskip("scipy")
     runner = load_module("test_cylinder_runner", RUNNER)
     x = np.linspace(-1.0, 1.0, 101)
     xx, yy = np.meshgrid(x, x, indexing="ij")
