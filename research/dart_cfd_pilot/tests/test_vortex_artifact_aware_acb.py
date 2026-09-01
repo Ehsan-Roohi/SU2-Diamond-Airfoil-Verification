@@ -84,6 +84,19 @@ def test_boundary_clipped_core_can_pass_without_complete_ring():
     assert support >= required
 
 
+def test_visual_audit_matching_preserves_candidate_identity():
+    module = load_module()
+    point = {
+        "rotation_sign": "1",
+        "x_physical": "1.0",
+        "y_physical": "2.0",
+    }
+    exact_candidate = [{"sign": 1, "x": 1.0, "y": 2.0}]
+    nearby_distinct_core = [{"sign": 1, "x": 1.05, "y": 2.0}]
+    assert module.candidate_identity_survives(point, exact_candidate, 1.0e-9)
+    assert not module.candidate_identity_survives(point, nearby_distinct_core, 1.0e-9)
+
+
 def test_visual_audit_is_complete_and_has_expected_blind_counts():
     labels = list(csv.DictReader((ROOT / "reference" / "acb_cmcd_blind_visual_audit.csv").open()))
     assert len(labels) == 36
@@ -109,3 +122,6 @@ def test_configuration_is_predeclared_and_labels_are_posthoc():
     assert "RUN_OK_RAW_FIELDS.txt" not in submit
     assert "'alpha_deg=30'" in submit
     assert "'final_step=16200'" in submit
+    assert cfg["audit_identity_tolerance"] <= 1.0e-8
+    assert "expert_match_radius" not in cfg
+    assert "exact candidate identity" in runner

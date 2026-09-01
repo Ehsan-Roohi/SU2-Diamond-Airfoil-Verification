@@ -10,7 +10,7 @@
   "holdout_frames": [31, 60],
   "reference_match_radius": 0.12,
   "close_pair_maximum_separation": 0.18,
-  "expert_match_radius": 0.12,
+  "audit_identity_tolerance": 1e-9,
   "gaussian_sigmas": [0.0, 1.0, 2.0],
   "local_patch_radius_cells": 3,
   "ring_radius_cells": 3.0,
