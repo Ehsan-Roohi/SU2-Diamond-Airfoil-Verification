@@ -12,7 +12,7 @@
     "detector_recalibration_allowed": false
   },
   "reference": {
-    "criterion": "solver-specific: pre-existing Stage-8 physics catalogue for MFC; raw Gamma2 artifact census plus zero-vortex negative-control declaration for SU2",
+    "criterion": "solver-specific: pre-existing Stage-8 physics catalogue for MFC; unlabelled native-topology failure audit plus raw Gamma2 artifact census for SU2",
     "absolute_gamma2_threshold": 0.6366197723675814,
     "minimum_component_cells": 3,
     "match_radius_over_c": 0.08,
