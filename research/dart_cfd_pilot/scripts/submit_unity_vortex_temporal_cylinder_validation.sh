@@ -32,7 +32,7 @@ readonly DEVELOPMENT_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_cyli
 readonly HOLDOUT_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_cylinder_wake_re200_temporal_holdout.json"
 readonly SPATIAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_scale_adaptive_sra_cmcd.json"
 readonly TEMPORAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_temporal_sa_sra_cmcd.json"
-readonly DETECTOR_FREEZE_COMMIT="45b606a73e678085cf11671035d6f651c2e9568f"
+readonly DETECTOR_FREEZE_COMMIT="7d9b27753dde34787c0689168dc5c58fa7a1b1ad"
 
 mkdir -p \
   "${PROJECT_ROOT}/logs" \
