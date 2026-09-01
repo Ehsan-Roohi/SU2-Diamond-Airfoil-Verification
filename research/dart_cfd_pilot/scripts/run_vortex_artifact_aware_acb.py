@@ -309,7 +309,12 @@ def score_blind_audit(
         rows.append({
             **point,
             **label,
-            "baseline_detected": candidate_identity_survives(\n                point, baseline.get(frame, []), identity_tolerance\n            ),\n            "artifact_aware_detected": candidate_identity_survives(\n                point, artifact_aware.get(frame, []), identity_tolerance\n            ),
+            "baseline_detected": candidate_identity_survives(
+                point, baseline.get(frame, []), identity_tolerance
+            ),
+            "artifact_aware_detected": candidate_identity_survives(
+                point, artifact_aware.get(frame, []), identity_tolerance
+            ),
         })
     baseline_metrics = confusion(rows, "baseline_detected")
     artifact_metrics = confusion(rows, "artifact_aware_detected")
