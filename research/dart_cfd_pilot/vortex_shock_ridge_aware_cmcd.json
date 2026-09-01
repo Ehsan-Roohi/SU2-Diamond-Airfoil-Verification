@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "method_name": "Shock-Ridge-Aware Coherent-Motion Core Detection (SRA-CMCD)",
+  "case_id": "su2_urans_sst_mach3_alpha40_t11999_t12000_development_negative_control",
+  "restart_members": [
+    "restart_medium_halfdt_11999.csv",
+    "restart_medium_halfdt_12000.csv"
+  ],
+  "gamma": 1.4,
+  "radial_points": 181,
+  "circumferential_points": 720,
+  "analysis_xlim": [-1.25, 4.75],
+  "analysis_ylim": [-1.25, 4.25],
+  "raster_spacing": 0.003703703703703704,
+  "figure_xlim": [-0.5, 1.8],
+  "figure_ylim": [-1.0, 1.2],
+  "winding_radii_cells": [4.0, 8.0, 12.0],
+  "winding_samples": 64,
+  "minimum_ring_valid_fraction": 0.9,
+  "minimum_signed_winding": 0.75,
+  "minimum_tangential_coherence": 0.7,
+  "maximum_winding_radial_to_tangential": 1.0,
+  "minimum_winding_ring_support": 2,
+  "q_island_radius_cells": 16,
+  "q_island_peak_fraction": 0.25,
+  "minimum_q_island_area_cells": 4,
+  "maximum_q_island_aspect_ratio": 3.0,
+  "pressure_minimum_search_radius_cells": 3,
+  "minimum_pressure_below_ring_fraction": 0.75,
+  "minimum_pressure_ring_support": 2,
+  "minimum_pressure_jump_per_cell": 0.011843250604248609,
+  "minimum_entropy_jump_per_cell": 0.004385904989822393,
+  "maximum_shock_ridge_distance_cells": 8.0,
+  "threshold_provenance": {
+    "role": "development-only absolute dimensionless thresholds frozen before any future case",
+    "pressure_jump_definition": "Delta_x * magnitude(grad(p)) / absolute(p)",
+    "entropy_jump_definition": "Delta_x * magnitude(grad(log(p/rho^gamma)))",
+    "source_case": "SU2 alpha40 development negative control",
+    "future_case_recalibration_allowed": false
+  }
+}
