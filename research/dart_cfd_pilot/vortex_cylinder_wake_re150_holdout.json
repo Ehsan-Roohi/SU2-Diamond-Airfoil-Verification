@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "method_name": "SA-SRA-CMCD Re=150 cylinder-wake holdout",
+  "case_id": "d2q9_lbm_cylinder_re150_holdout",
+  "case_role": "independent time-resolved viscous holdout frozen before execution",
+  "solver": {
+    "scheme": "D2Q9 BGK lattice Boltzmann",
+    "nx": 600,
+    "ny": 240,
+    "diameter_cells": 24,
+    "reynolds_number": 150.0,
+    "inlet_lattice_velocity": 0.10,
+    "total_steps": 18000,
+    "sample_start_step": 8000,
+    "snapshot_stride": 250,
+    "monitor_stride": 10,
+    "cylinder_x_diameters_from_inlet": 5.0,
+    "spanwise_boundary": "periodic",
+    "cylinder_boundary": "halfway_bounce_back",
+    "outlet_boundary": "zero_gradient_population_copy"
+  },
+  "evaluation": {
+    "analysis_x_over_d": [-1.25, 15.0],
+    "analysis_y_over_d": [-4.5, 4.5],
+    "wake_x_over_d": [1.0, 14.0],
+    "wake_y_over_d": [-3.0, 3.0],
+    "gamma2_radius_cells": 4,
+    "gamma2_threshold": 0.6366197723675814,
+    "gamma2_minimum_component_cells": 3,
+    "reference_boundary_margin_cells": 6,
+    "ground_truth_match_radius_over_d": 0.70,
+    "near_wall_radius_over_d": 0.75,
+    "gaussian_sigmas": [0.0, 1.0, 2.0],
+    "frequency_start_step": 6000,
+    "physical_figure_count": 3
+  },
+  "acceptance_gates": {
+    "minimum_evaluated_frames": 30,
+    "minimum_reference_vortices": 40,
+    "maximum_density_deviation": 0.05,
+    "strouhal_number_range": [0.15, 0.22],
+    "minimum_precision": 0.80,
+    "minimum_recall": 0.80,
+    "minimum_rotation_sign_accuracy": 0.95,
+    "maximum_near_wall_false_positives": 0
+  },
+  "frozen_detector_sources": {
+    "candidate_protocol": "vortex_analytic_positive_control.json",
+    "sra_configuration": "vortex_scale_adaptive_sra_cmcd.json",
+    "detector_recalibration_allowed": false,
+    "development_case": "d2q9_lbm_cylinder_re100"
+  }
+}
