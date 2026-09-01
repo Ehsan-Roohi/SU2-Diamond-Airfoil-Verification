@@ -42,6 +42,49 @@ def test_lbm_solver_compiles_and_writes_smoke_sequence(tmp_path):
     assert (output / "cylinder_monitor.csv").is_file()
 
 
+def test_lbm_solver_supports_square_obstacle_without_breaking_legacy_cli(tmp_path):
+    source = ROOT / "scripts" / "cylinder_lbm_d2q9.c"
+    binary = tmp_path / "cylinder_lbm_d2q9"
+    subprocess.run(
+        [
+            "cc", "-O2", "-fopenmp", "-std=c11", "-Wall", "-Wextra",
+            "-Werror", str(source), "-lm", "-o", str(binary),
+        ],
+        check=True,
+    )
+    output = tmp_path / "square_smoke"
+    completed = subprocess.run(
+        [
+            str(binary), "64", "48", "8", "100", "0.08", "2", "0", "1", "1",
+            str(output), "square",
+        ],
+        check=True,
+        timeout=30,
+        text=True,
+        capture_output=True,
+    )
+    assert "LBM_OBSTACLE_SHAPE=square" in completed.stdout
+    assert len(list(output.glob("snapshot_*.bin"))) == 3
+
+
+def test_square_obstacle_mask_has_flat_faces_and_declared_side_length():
+    pytest.importorskip("scipy")
+    runner = load_module("test_square_geometry", RUNNER)
+    cfg = {"solver": {
+        "nx": 64,
+        "ny": 48,
+        "diameter_cells": 8,
+        "cylinder_x_diameters_from_inlet": 5.0,
+        "obstacle_shape": "square",
+    }}
+    x, y, fluid = runner.cylinder_coordinates(cfg)
+    xx, yy = np.meshgrid(x, y, indexing="ij")
+    solid = ~fluid
+    assert np.all(np.abs(xx[solid]) <= 0.5)
+    assert np.all(np.abs(yy[solid]) <= 0.5)
+    assert np.any(solid & (np.abs(xx) > 0.40) & (np.abs(yy) > 0.40))
+
+
 def test_gamma2_reference_finds_a_lamb_oseen_core():
     pytest.importorskip("scipy")
     runner = load_module("test_cylinder_runner", RUNNER)

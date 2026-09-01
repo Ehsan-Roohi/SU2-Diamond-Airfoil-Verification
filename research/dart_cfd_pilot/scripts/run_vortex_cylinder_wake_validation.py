@@ -53,7 +53,7 @@ def run_solver(binary: Path, simulation: Path, cfg: dict, log: Path) -> None:
         str(solver["reynolds_number"]), str(solver["inlet_lattice_velocity"]),
         str(solver["total_steps"]), str(solver["sample_start_step"]),
         str(solver["snapshot_stride"]), str(solver["monitor_stride"]),
-        str(simulation),
+        str(simulation), str(solver.get("obstacle_shape", "circle")),
     ]
     with log.open("w") as stream:
         subprocess.run(command, check=True, stdout=stream, stderr=subprocess.STDOUT)
@@ -82,7 +82,13 @@ def cylinder_coordinates(cfg: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     x = (np.arange(nx, dtype=float) - cylinder_x) / diameter
     y = (np.arange(ny, dtype=float) - cylinder_y) / diameter
     xx, yy = np.meshgrid(x, y, indexing="ij")
-    fluid = xx * xx + yy * yy > 0.25
+    obstacle_shape = str(solver.get("obstacle_shape", "circle"))
+    if obstacle_shape == "circle":
+        fluid = xx * xx + yy * yy > 0.25
+    elif obstacle_shape == "square":
+        fluid = (np.abs(xx) > 0.5) | (np.abs(yy) > 0.5)
+    else:
+        raise ValueError(f"unsupported obstacle shape: {obstacle_shape}")
     return x, y, fluid
 
 
@@ -299,7 +305,7 @@ def strouhal_metrics(monitor_path: Path, cfg: dict) -> dict:
 
 def draw_physical(path: Path, chosen: list[dict], cfg: dict, detector_name: str) -> None:
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Circle
+    from matplotlib.patches import Circle, Rectangle
 
     fig, axes = plt.subplots(
         len(chosen), 1, figsize=(15.5, 4.2 * len(chosen)), constrained_layout=True
@@ -312,7 +318,11 @@ def draw_physical(path: Path, chosen: list[dict], cfg: dict, detector_name: str)
             row["x"], row["y"], field.T,
             levels=np.linspace(-limit, limit, 101), cmap="RdBu_r", extend="both",
         )
-        axis.add_patch(Circle((0.0, 0.0), 0.5, color="black", zorder=5))
+        obstacle_shape = str(cfg["solver"].get("obstacle_shape", "circle"))
+        if obstacle_shape == "square":
+            axis.add_patch(Rectangle((-0.5, -0.5), 1.0, 1.0, color="black", zorder=5))
+        else:
+            axis.add_patch(Circle((0.0, 0.0), 0.5, color="black", zorder=5))
         if row["reference"]:
             axis.scatter(
                 [item["x"] for item in row["reference"]],
@@ -328,7 +338,8 @@ def draw_physical(path: Path, chosen: list[dict], cfg: dict, detector_name: str)
             )
         axis.set(
             xlim=(-1.1, 12.0), ylim=(-3.0, 3.0), xlabel="x/D", ylabel="y/D",
-            title=(f"Cylinder wake, Re={float(cfg['solver']['reynolds_number']):g}, "
+            title=(f"{obstacle_shape.replace('_', ' ').title()}-cylinder wake, "
+                   f"Re={float(cfg['solver']['reynolds_number']):g}, "
                    f"step {row['step']}  |  "
                    f"TP={row['metrics']['true_positive']} "
                    f"FP={row['metrics']['false_positive']} "
@@ -430,7 +441,9 @@ def main() -> int:
         u = u_full[np.ix_(xi, yi)]
         v = v_full[np.ix_(xi, yi)]
         snapshot = {
-            "case_id": cfg["case_id"], "category": "cylinder_wake", "x": x, "y": y,
+            "case_id": cfg["case_id"],
+            "category": f"{cfg['solver'].get('obstacle_shape', 'circle')}_cylinder_wake",
+            "x": x, "y": y,
             "u": u, "v": v, "rho": rho, "pressure": rho / 3.0, "fluid": fluid,
             "truth": [], "metadata": {"frame": frame, "step": step},
         }
@@ -604,6 +617,7 @@ def main() -> int:
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "method_name": f"{method_cfg['method_name']} cylinder-wake audit",
         "case_id": cfg["case_id"],
+        "obstacle_shape": cfg["solver"].get("obstacle_shape", "circle"),
         "protocol": cfg,
         "frequency_metrics": serial_frequency,
         "detection_metrics": metrics,
