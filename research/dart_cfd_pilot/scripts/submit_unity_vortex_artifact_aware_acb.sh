@@ -20,6 +20,7 @@ readonly PROJECT_ROOT="${VORTEX_PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-${SOURCE_PROJE
 readonly WORK_ROOT="${VORTEX_WORK_ROOT:-/project/pi_roohie_umass_edu/DART_CFD_PILOT}"
 readonly MFC_ROOT="${VORTEX_AAACB_MFC_ROOT:-/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification/third_party/MFC-0c9a1d43-iles-portable-v3}"
 readonly CASE_DIR="${VORTEX_AAACB_MFC_CASE_DIR:-${WORK_ROOT}/ccfcv-alpha30-raw}"
+readonly RAW_COMPLETION_MARKER="${VORTEX_AAACB_RAW_COMPLETION_MARKER:-${CASE_DIR}/RUN_OK_CCFCV_RAW_FIELDS.txt}"
 readonly CCFCV_DIR="${VORTEX_AAACB_CCFCV_DIR:-${PROJECT_ROOT}/research/dart_cfd_pilot/results/63828431}"
 readonly ACB_DIR="${VORTEX_AAACB_ACB_DIR:-${PROJECT_ROOT}/research/dart_cfd_pilot/results/63834418}"
 readonly LABELS="${VORTEX_AAACB_EXPERT_LABELS:-${PROJECT_ROOT}/research/dart_cfd_pilot/reference/acb_cmcd_blind_visual_audit.csv}"
@@ -36,10 +37,16 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   echo "ERROR: MFC Python is not executable: ${PYTHON_BIN}" >&2
   exit 2
 fi
-if ! grep -qx 'status=PASS' "${CASE_DIR}/RUN_OK_RAW_FIELDS.txt"; then
-  echo "ERROR: completed raw-field marker missing from ${CASE_DIR}" >&2
+if [[ ! -s "${RAW_COMPLETION_MARKER}" ]]; then
+  echo "ERROR: CC-FCV raw-field marker missing: ${RAW_COMPLETION_MARKER}" >&2
   exit 2
 fi
+for expected_marker_line in 'status=PASS' 'alpha_deg=30' 'final_step=16200'; do
+  if ! grep -qx "${expected_marker_line}" "${RAW_COMPLETION_MARKER}"; then
+    echo "ERROR: CC-FCV raw-field marker lacks ${expected_marker_line}: ${RAW_COMPLETION_MARKER}" >&2
+    exit 2
+  fi
+done
 for required in \
   "${CCFCV_DIR}/ccfcv_reference_catalogue.csv" \
   "${ACB_DIR}/acb_cmcd_detections.csv" \

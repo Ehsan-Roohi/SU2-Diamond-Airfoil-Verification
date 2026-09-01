@@ -105,3 +105,7 @@ def test_configuration_is_predeclared_and_labels_are_posthoc():
     assert main_body.index("artifact_by_frame: dict") < main_body.index("audit_rows, expert = score_blind_audit(")
     assert "#SBATCH --partition=cpu" in submit
     assert "VORTEX_ARTIFACT_AWARE_ACB_${JOB_ID}_COMPLETE.tar.gz" in submit
+    assert "RUN_OK_CCFCV_RAW_FIELDS.txt" in submit
+    assert "RUN_OK_RAW_FIELDS.txt" not in submit
+    assert "'alpha_deg=30'" in submit
+    assert "'final_step=16200'" in submit
