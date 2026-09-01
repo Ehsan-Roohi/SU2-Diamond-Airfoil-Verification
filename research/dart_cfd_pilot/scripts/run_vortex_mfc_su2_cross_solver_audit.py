@@ -21,7 +21,6 @@ from hashlib import sha256
 from pathlib import Path
 
 import numpy as np
-from scipy import ndimage
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,6 +95,8 @@ def field_by_alias(variables: dict, aliases: tuple[str, ...]) -> np.ndarray:
 def reference_centers(
     snapshot: dict, gamma2_radius: int, reference_cfg: dict, bounds: tuple[list, list]
 ) -> tuple[np.ndarray, list[dict]]:
+    from scipy import ndimage
+
     stage8 = load_sibling("cross_solver_stage8_reference", "run_dart_stage8_physics_catalogue.py")
     gamma2 = stage8.graftieaux_gamma2(
         snapshot["x"], snapshot["y"], snapshot["u"], snapshot["v"], gamma2_radius
