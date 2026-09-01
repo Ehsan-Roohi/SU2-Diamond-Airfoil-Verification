@@ -232,6 +232,7 @@ def test_square_re100_prospective_protocol_is_frozen_and_flat():
     assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_SQUARE_RE100_" in text
     assert "PYTHONNOUSERSITE=1" in text
     assert "PUBLISHED_PROTOCOL_RECORD_COMMIT" in text
+    assert 'git fetch origin "${PUBLISHED_PROTOCOL_RECORD_REF}"' in text
     assert "stage" not in submit.name
 
 
@@ -259,4 +260,5 @@ def test_square_re120_v2_holdout_is_frozen_before_execution():
     assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_V2_SQUARE_RE120_" in text
     assert "LOCAL_PREEXECUTION_FREEZE_COMMIT" in text
     assert "PUBLISHED_PROTOCOL_RECORD_COMMIT" in text
+    assert 'git fetch origin "${PUBLISHED_PROTOCOL_RECORD_REF}"' in text
     assert "stage" not in submit.name

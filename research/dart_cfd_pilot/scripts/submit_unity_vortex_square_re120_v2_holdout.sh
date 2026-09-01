@@ -33,6 +33,7 @@ readonly SPATIAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_scale_ad
 readonly TEMPORAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_temporal_wide_window_tsa_sra_cmcd_v2.json"
 readonly LOCAL_PREEXECUTION_FREEZE_COMMIT="0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
 readonly PUBLISHED_PROTOCOL_RECORD_COMMIT="b6a782f772cb1da64096f2f339532d2ed296ad6c"
+readonly PUBLISHED_PROTOCOL_RECORD_REF="provenance/tsa-sra-cmcd-v2-freeze-record"
 
 mkdir -p "${PROJECT_ROOT}/logs" "${OUTPUT_DIR}" "${SIMULATION_DIR}" \
   "${WORK_ROOT}/matplotlib" "${WORK_ROOT}/pip-cache"
@@ -47,6 +48,7 @@ if ! "${PYTHON_BIN}" -c 'import matplotlib.pyplot, numpy, pytest, scipy'; then
 fi
 
 cd "${PROJECT_ROOT}"
+git fetch origin "${PUBLISHED_PROTOCOL_RECORD_REF}"
 git cat-file -e "${PUBLISHED_PROTOCOL_RECORD_COMMIT}^{commit}"
 "${PYTHON_BIN}" -m pytest -q \
   research/dart_cfd_pilot/tests/test_vortex_cylinder_wake_validation.py \
