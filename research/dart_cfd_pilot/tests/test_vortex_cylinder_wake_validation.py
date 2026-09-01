@@ -190,3 +190,24 @@ def test_unity_archive_is_flat_and_not_named_stage():
     assert "${PROJECT_ROOT}/VORTEX_CYLINDER_WAKE_" in text
     assert "PYTHONNOUSERSITE=1" in text
     assert "stage" not in submit.name
+
+
+def test_cross_geometry_protocol_is_frozen_and_submission_is_flat():
+    protocol = json.loads(
+        (ROOT / "vortex_square_cylinder_re150_cross_geometry_holdout.json").read_text()
+    )
+    sensitivity = json.loads(
+        (ROOT / "vortex_square_cylinder_re150_blockage_sensitivity.json").read_text()
+    )
+    assert protocol["solver"]["obstacle_shape"] == "square"
+    assert protocol["validation_role"] == "independent_holdout"
+    assert protocol["frequency_gate_provenance"]["frozen_before_first_execution"] is True
+    assert protocol["frozen_detector_sources"]["detector_recalibration_allowed"] is False
+    assert sensitivity["validation_role"] == "diagnostic_sensitivity"
+    assert sensitivity["diagnostic_provenance"]["holdout_result_remains_failed"] is True
+    submit = ROOT / "scripts" / "submit_unity_vortex_cross_geometry_validation.sh"
+    text = submit.read_text()
+    assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_CROSS_GEOMETRY_" in text
+    assert "HOLDOUT_PROTOCOL_FREEZE_COMMIT" in text
+    assert "PYTHONNOUSERSITE=1" in text
+    assert "stage" not in submit.name
