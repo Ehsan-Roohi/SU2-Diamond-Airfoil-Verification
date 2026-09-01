@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "method_name": "Frozen TSA-SRA-CMCD-v2 retrospective MFC/SU2 audit",
+  "short_name": "TSA-SRA-CMCD-v2",
+  "case_role": "retrospective cross-solver diagnostic; both alpha-40 airfoil cases were visible during earlier method development",
+  "future_case_recalibration_allowed": false,
+  "frozen_sources": {
+    "candidate_protocol": "vortex_analytic_positive_control.json",
+    "spatial_configuration": "vortex_scale_adaptive_sra_cmcd.json",
+    "temporal_configuration": "vortex_temporal_wide_window_tsa_sra_cmcd_v2.json",
+    "published_protocol_record_commit": "b6a782f772cb1da64096f2f339532d2ed296ad6c",
+    "detector_recalibration_allowed": false
+  },
+  "reference": {
+    "criterion": "solver-specific: pre-existing Stage-8 physics catalogue for MFC; raw Gamma2 artifact census plus zero-vortex negative-control declaration for SU2",
+    "absolute_gamma2_threshold": 0.6366197723675814,
+    "minimum_component_cells": 3,
+    "match_radius_over_c": 0.08,
+    "boundary_margin_cells": 6
+  },
+  "acceptance_gates": {
+    "minimum_reference_vortices": 20,
+    "minimum_precision": 0.8,
+    "minimum_recall": 0.8,
+    "minimum_rotation_sign_accuracy": 0.95,
+    "minimum_temporal_frames": 30,
+    "maximum_near_body_false_positives": 0
+  },
+  "mfc": {
+    "case_id": "mfc_iles_mach3_alpha40_t000_t3000_retrospective",
+    "evaluation_role": "retrospective_positive_sequence",
+    "reference_catalogue_role": "pre-existing Stage-8 catalogue frozen before this cross-solver audit",
+    "gamma": 1.4,
+    "step_start": 0,
+    "step_stop": 16200,
+    "step_stride": 270,
+    "snapshot_dt": 0.05,
+    "freestream_velocity": 3.0,
+    "analysis_xlim": [0.6201298701298701, 4.75],
+    "analysis_ylim": [-0.12914691943127998, 3.8785545023696684],
+    "figure_xlim": [0.62, 4.75],
+    "figure_ylim": [-0.13, 3.88],
+    "gamma2_radius_cells": 2,
+    "equivalent_cylinder_wall_clearance_over_c": 0.25,
+    "required_marker": "RUN_OK_RAW_FIELDS.txt"
+  },
+  "su2": {
+    "case_id": "su2_urans_sst_mach3_alpha40_t11999_t12000_retrospective",
+    "evaluation_role": "development_negative_control",
+    "negative_control_basis": "the two adjacent URANS states were predeclared as a shock-rich non-vortex control; raw Gamma2 components are retained only as an artifact census",
+    "gamma": 1.4,
+    "restart_members": [
+      "restart_medium_halfdt_11999.csv",
+      "restart_medium_halfdt_12000.csv"
+    ],
+    "radial_points": 181,
+    "circumferential_points": 720,
+    "analysis_xlim": [-1.25, 4.75],
+    "analysis_ylim": [-1.25, 4.25],
+    "figure_xlim": [-0.5, 1.8],
+    "figure_ylim": [-1.0, 1.2],
+    "raster_spacing": 0.003703703703703704,
+    "gamma2_radius_cells": 4,
+    "equivalent_cylinder_wall_clearance_over_c": 0.25
+  }
+}

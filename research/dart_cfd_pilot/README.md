@@ -282,6 +282,26 @@ sbatch --export=ALL \
 VORTEX_ANALYTIC_PC_JOBID_COMPLETE.tar.gz
 ```
 
+## Frozen MFC/SU2 cross-solver audit
+
+The published TSA-SRA-CMCD-v2 detector can now be applied in one job to the
+existing 61-frame MFC ILES sequence and the two-state SU2 SST-URANS checkpoint.
+No detector threshold is recalibrated. MFC is scored against its pre-existing
+Stage-8 physics catalogue; SU2 remains the predeclared shock-rich negative
+control and retains raw Gamma2 components only as an artifact census. The SU2
+temporal gate fails closed because two snapshots cannot validate temporal
+recovery.
+
+```bash
+sbatch --export=ALL \
+  research/dart_cfd_pilot/scripts/submit_unity_vortex_mfc_su2_cross_solver.sh
+```
+
+The direct-download archive is written at the repository root as
+`VORTEX_MFC_SU2_CROSS_SOLVER_JOBID_COMPLETE.tar.gz`. See
+[`MFC_SU2_CROSS_SOLVER_AUDIT.md`](MFC_SU2_CROSS_SOLVER_AUDIT.md) for the
+reference policy, local SU2 negative-control result, and publication boundary.
+
 
 
 ## Stage 4: physics-gated track audit
