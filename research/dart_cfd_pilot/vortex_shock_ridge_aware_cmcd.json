@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "method_name": "Shock-Ridge-Aware Coherent-Motion Core Detection (SRA-CMCD)",
-  "case_id": "su2_urans_sst_mach3_alpha40_t11999_t12000_development_negative_control",
+  "case_id": "su2_urans_sst_mach3_alpha40_t11999_t12000_unlabelled_diagnostic",
   "restart_members": [
     "restart_medium_halfdt_11999.csv",
     "restart_medium_halfdt_12000.csv"
@@ -43,7 +43,7 @@
     "role": "development-only absolute dimensionless thresholds frozen before any future case",
     "pressure_jump_definition": "Delta_x * magnitude(grad(p)) / absolute(p)",
     "entropy_jump_definition": "Delta_x * magnitude(grad(log(p/rho^gamma)))",
-    "source_case": "SU2 alpha40 development negative control",
+    "source_case": "SU2 alpha40 unlabelled development diagnostic",
     "future_case_recalibration_allowed": false
   }
 }

@@ -90,19 +90,12 @@ def test_structured_ogrid_triangulation_preserves_hole_and_periodic_seam():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     radial, circumferential = 2, 8
-    theta = np.linspace(0.0, 2.0 * np.pi, circumferential, endpoint=False)
-    coordinates = np.array(
-        [(radius * np.cos(angle), radius * np.sin(angle))
-         for radius in (1.0, 2.0) for angle in theta]
-    )
-    triangulation = module.structured_ogrid_triangulation(
-        coordinates, radial, circumferential
-    )
+    triangles = module.structured_ogrid_triangles(radial, circumferential)
     # Two triangles per logical cell, including the periodic last-to-first cell.
-    assert triangulation.triangles.shape == (2 * circumferential, 3)
+    assert triangles.shape == (2 * circumferential, 3)
     edges = {
         tuple(sorted((int(a), int(b))))
-        for tri in triangulation.triangles
+        for tri in triangles
         for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0]))
     }
     assert (0, circumferential - 1) in edges

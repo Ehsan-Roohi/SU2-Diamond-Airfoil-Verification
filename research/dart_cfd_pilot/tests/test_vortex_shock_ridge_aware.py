@@ -184,9 +184,10 @@ def test_protocol_names_development_case_and_flat_root_archive():
     requirements = (ROOT / "requirements-shock-ridge-aware.txt").read_text()
     runner = SCRIPT.read_text()
     assert cfg["method_name"].startswith("Shock-Ridge-Aware")
-    assert "development_negative_control" in cfg["case_id"]
+    assert "unlabelled_diagnostic" in cfg["case_id"]
     assert cfg["threshold_provenance"]["future_case_recalibration_allowed"] is False
-    assert "never independent validation" in runner
+    assert "neither a zero-vortex" in runner
+    assert "nor an independent validation case" in runner
     assert "VORTEX_SHOCK_RIDGE_CMCD_${JOB_ID}_COMPLETE.tar.gz" in submit
     assert "${PROJECT_ROOT}/VORTEX_SHOCK_RIDGE_CMCD_" in submit
     assert "PYTHONNOUSERSITE=1" in submit

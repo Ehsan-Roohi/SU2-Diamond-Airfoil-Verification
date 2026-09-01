@@ -75,7 +75,7 @@ cd "${PROJECT_ROOT}"
 {
   echo "job_id=${JOB_ID}"
   echo "method=SRA-CMCD"
-  echo "case_role=SU2_alpha40_development_negative_control"
+  echo "case_role=SU2_alpha40_unlabelled_development_diagnostic"
   echo "checkpoint=${CHECKPOINT}"
   echo "checkpoint_sha256=$(sha256sum "${CHECKPOINT}" | awk '{print $1}')"
   echo "aa_locked_config=${AA_LOCKED}"

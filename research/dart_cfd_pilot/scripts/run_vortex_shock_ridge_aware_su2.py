@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Shock-ridge-aware CMCD development audit on raw SU2 restart fields.
 
-The alpha=40 SU2 case is explicitly a development negative control.  It may
-expose failure modes and define a revised filter, but it is never scored as an
-independent validation case.
+The alpha=40 SU2 case is an unlabelled development diagnostic.  It may expose
+failure modes and define a revised filter, but it is neither a zero-vortex
+negative control nor an independent validation case.
 """
 from __future__ import annotations
 
@@ -113,6 +113,28 @@ def derive_native_ogrid_fields(raw: dict[str, np.ndarray], radial: int, circumfe
     }
 
 
+def structured_ogrid_triangles(radial: int, circumferential: int) -> np.ndarray:
+    """Return genuine neighboring-cell connectivity for a logical SU2 O-grid."""
+    if radial < 2 or circumferential < 3:
+        raise RuntimeError(
+            "SU2 O-grid dimensions must have at least two radial and three "
+            "circumferential nodes"
+        )
+    expected = radial * circumferential
+    cells = np.arange(expected, dtype=np.int64).reshape(radial, circumferential)
+    lower = cells[:-1]
+    upper = cells[1:]
+    lower_next = np.roll(lower, -1, axis=1)
+    upper_next = np.roll(upper, -1, axis=1)
+    return np.concatenate(
+        (
+            np.column_stack((lower.ravel(), upper.ravel(), upper_next.ravel())),
+            np.column_stack((lower.ravel(), upper_next.ravel(), lower_next.ravel())),
+        ),
+        axis=0,
+    )
+
+
 def structured_ogrid_triangulation(
     coordinates: np.ndarray,
     radial: int,
@@ -134,18 +156,7 @@ def structured_ogrid_triangulation(
             f"SU2 O-grid coordinate size mismatch: expected {(expected, 2)}, "
             f"found {coordinates.shape}"
         )
-    cells = np.arange(expected, dtype=np.int64).reshape(radial, circumferential)
-    lower = cells[:-1]
-    upper = cells[1:]
-    lower_next = np.roll(lower, -1, axis=1)
-    upper_next = np.roll(upper, -1, axis=1)
-    triangles = np.concatenate(
-        (
-            np.column_stack((lower.ravel(), upper.ravel(), upper_next.ravel())),
-            np.column_stack((lower.ravel(), upper_next.ravel(), lower_next.ravel())),
-        ),
-        axis=0,
-    )
+    triangles = structured_ogrid_triangles(radial, circumferential)
     return mtri.Triangulation(coordinates[:, 0], coordinates[:, 1], triangles)
 
 
@@ -770,7 +781,7 @@ def main() -> int:
             "status": status, "manifest": manifest,
         },
         "protocol": {
-            "alpha40_role": "development negative control; never independent validation",
+            "alpha40_role": "unlabelled development diagnostic; never a zero-vortex negative control or independent validation",
             "frozen_aa_configuration_recalibrated": False,
             "shock_ridge_thresholds_predeclared": True,
             "human_labels_used_for_runtime_decisions": False,
@@ -782,7 +793,7 @@ def main() -> int:
         "rejections": dict(rejection_counter),
         "final_detection_count": len(final_detections),
         "gates": gates,
-        "claim_gate": "su2_alpha40_development_negative_control_only",
+        "claim_gate": "su2_alpha40_unlabelled_development_diagnostic_only",
         "limitations": [
             "The SU2 checkpoint metadata is CHECKPOINTED/NOT_QUALIFIED and is not a standalone CFD validation result.",
             "Only two adjacent, nearly identical restart states are present; exact persistence is not temporal validation.",

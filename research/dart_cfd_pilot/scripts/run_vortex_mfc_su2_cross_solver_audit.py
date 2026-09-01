@@ -518,8 +518,8 @@ def main() -> int:
                 runtime["snapshot"], int(case_cfg["gamma2_radius_cells"]),
                 config["reference"], (case_cfg["analysis_xlim"], case_cfg["analysis_ylim"]),
             )
-            # SU2 alpha=40 was predeclared as a shock-rich negative control.
-            # Raw Gamma2 components are an artifact census, never truth labels.
+            # SU2 alpha=40 is an unlabelled shock-rich diagnostic. Raw Gamma2
+            # components are an artifact census, never truth labels.
             reference = []
         missed_topology = (
             missed_strong_topology_candidates(
