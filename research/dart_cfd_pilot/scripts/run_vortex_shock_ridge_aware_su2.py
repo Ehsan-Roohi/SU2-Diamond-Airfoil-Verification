@@ -200,14 +200,18 @@ def ring_winding_features(snapshot: dict, candidate: dict, radius_cells: float, 
     if valid_fraction < 0.9:
         return {
             "radius_cells": radius_cells, "valid_fraction": valid_fraction,
-            "signed_winding": 0.0, "tangential_coherence": 0.0,
+            "absolute_winding": 0.0, "tangential_coherence": 0.0,
             "radial_to_tangential": float("inf"), "pass": False,
         }
     du = u - float(np.mean(u))
     dv = v - float(np.mean(v))
     phase = np.angle(du + 1j * dv)
     increments = np.angle(np.exp(1j * (np.roll(phase, -1) - phase)))
-    signed_winding = int(candidate["sign"]) * float(np.sum(increments) / (2.0 * math.pi))
+    # The velocity-vector phase winds once around both clockwise and
+    # counter-clockwise cores.  Rotation direction is encoded by the signed
+    # tangential velocity below; multiplying the phase winding by the
+    # vorticity sign would reject every clockwise vortex.
+    absolute_winding = abs(float(np.sum(increments) / (2.0 * math.pi)))
     tangential = -du * np.sin(theta) + dv * np.cos(theta)
     radial = du * np.cos(theta) + dv * np.sin(theta)
     tangential_coherence = float(np.mean(int(candidate["sign"]) * tangential > 0.0))
@@ -218,7 +222,7 @@ def ring_winding_features(snapshot: dict, candidate: dict, radius_cells: float, 
     return {
         "radius_cells": radius_cells,
         "valid_fraction": valid_fraction,
-        "signed_winding": signed_winding,
+        "absolute_winding": absolute_winding,
         "tangential_coherence": tangential_coherence,
         "radial_to_tangential": radial_to_tangential,
     }
@@ -227,7 +231,7 @@ def ring_winding_features(snapshot: dict, candidate: dict, radius_cells: float, 
 def winding_pass(features: dict, cfg: dict) -> bool:
     return bool(
         features["valid_fraction"] >= float(cfg["minimum_ring_valid_fraction"])
-        and features["signed_winding"] >= float(cfg["minimum_signed_winding"])
+        and features["absolute_winding"] >= float(cfg["minimum_absolute_winding"])
         and features["tangential_coherence"] >= float(cfg["minimum_tangential_coherence"])
         and features["radial_to_tangential"] <= float(cfg["maximum_winding_radial_to_tangential"])
     )
@@ -237,24 +241,43 @@ def closed_q_island(snapshot: dict, candidate: dict, cfg: dict) -> dict:
     from scipy.ndimage import label
 
     radius = int(cfg["q_island_radius_cells"])
+    maximum_radius = int(cfg.get("q_island_maximum_radius_cells", radius))
+    if maximum_radius < radius:
+        raise ValueError("q_island_maximum_radius_cells must not be smaller than the initial radius")
     fraction = float(cfg["q_island_peak_fraction"])
     i, j = int(candidate["grid_i"]), int(candidate["grid_j"])
     q = snapshot["q"]
-    i0, i1 = max(0, i - radius), min(q.shape[0], i + radius + 1)
-    j0, j1 = max(0, j - radius), min(q.shape[1], j + radius + 1)
-    patch = q[i0:i1, j0:j1]
-    components, _ = label(
-        patch >= fraction * max(float(q[i, j]), 1.0e-300),
-        structure=np.ones((3, 3), dtype=int),
-    )
-    component_id = int(components[i - i0, j - j0])
-    if component_id == 0:
-        return {"closed": False, "area_cells": 0, "aspect_ratio": float("inf"), "pass": False}
-    component = components == component_id
-    touches_boundary = bool(
-        np.any(component[0, :]) or np.any(component[-1, :])
-        or np.any(component[:, 0]) or np.any(component[:, -1])
-    )
+    component = None
+    touches_boundary = True
+    while True:
+        i0, i1 = max(0, i - radius), min(q.shape[0], i + radius + 1)
+        j0, j1 = max(0, j - radius), min(q.shape[1], j + radius + 1)
+        patch = q[i0:i1, j0:j1]
+        components, _ = label(
+            patch >= fraction * max(float(q[i, j]), 1.0e-300),
+            structure=np.ones((3, 3), dtype=int),
+        )
+        component_id = int(components[i - i0, j - j0])
+        if component_id == 0:
+            return {
+                "closed": False, "area_cells": 0, "aspect_ratio": float("inf"),
+                "analysis_radius_cells": radius, "pass": False,
+            }
+        component = components == component_id
+        edge_hits = (
+            bool(np.any(component[0, :])), bool(np.any(component[-1, :])),
+            bool(np.any(component[:, 0])), bool(np.any(component[:, -1])),
+        )
+        touches_boundary = any(edge_hits)
+        touches_domain_boundary = bool(
+            (i0 == 0 and edge_hits[0]) or (i1 == q.shape[0] and edge_hits[1])
+            or (j0 == 0 and edge_hits[2]) or (j1 == q.shape[1] and edge_hits[3])
+        )
+        if not touches_boundary or touches_domain_boundary or radius >= maximum_radius:
+            break
+        radius = min(maximum_radius, max(radius + 1, int(math.ceil(1.5 * radius))))
+
+    assert component is not None
     points = np.argwhere(component)
     area = int(points.shape[0])
     aspect = float("inf")
@@ -269,7 +292,10 @@ def closed_q_island(snapshot: dict, candidate: dict, cfg: dict) -> dict:
         and area >= int(cfg["minimum_q_island_area_cells"])
         and aspect <= float(cfg["maximum_q_island_aspect_ratio"])
     )
-    return {"closed": not touches_boundary, "area_cells": area, "aspect_ratio": aspect, "pass": passed}
+    return {
+        "closed": not touches_boundary, "area_cells": area, "aspect_ratio": aspect,
+        "analysis_radius_cells": radius, "pass": passed,
+    }
 
 
 def pressure_core_support(snapshot: dict, candidate: dict, cfg: dict) -> dict:
@@ -304,11 +330,15 @@ def pressure_core_support(snapshot: dict, candidate: dict, cfg: dict) -> dict:
             ),
         })
     support = sum(bool(row["pass"]) for row in rings)
+    offset_cells = float(math.hypot(ic - i, jc - j))
     return {
         "minimum_x": float(x[ic]), "minimum_y": float(y[jc]),
-        "offset_cells": float(math.hypot(ic - i, jc - j)),
+        "offset_cells": offset_cells,
         "ring_support": support, "rings": rings,
-        "pass": support >= int(cfg["minimum_pressure_ring_support"]),
+        "pass": bool(
+            support >= int(cfg["minimum_pressure_ring_support"])
+            and offset_cells <= float(cfg["maximum_pressure_minimum_offset_cells"])
+        ),
     }
 
 
@@ -340,6 +370,70 @@ def revised_decision(
     if shock_distance_cells <= float(cfg["maximum_shock_ridge_distance_cells"]):
         return False, "thermodynamic_shock_ridge_proximity"
     return True, "accepted"
+
+
+def suppress_subordinate_same_sign_peaks(rows: list[dict], cfg: dict) -> list[dict]:
+    """Reject weak satellite peaks without merging equal-strength close cores."""
+    radius = float(cfg["subordinate_peak_radius_cells"])
+    score_fraction = float(cfg["subordinate_peak_maximum_score_fraction"])
+    minimum_pressure_offset = float(cfg["subordinate_peak_minimum_pressure_offset_cells"])
+    retained: list[dict] = []
+    for row in sorted(rows, key=lambda item: float(item["score"]), reverse=True):
+        if not row["accepted"]:
+            continue
+        subordinate = any(
+            int(row["sign"]) == int(stronger["sign"])
+            and math.hypot(
+                int(row["grid_i"]) - int(stronger["grid_i"]),
+                int(row["grid_j"]) - int(stronger["grid_j"]),
+            ) <= radius
+            and float(row["score"]) < score_fraction * float(stronger["score"])
+            and float(row["pressure_core"]["offset_cells"]) > minimum_pressure_offset
+            for stronger in retained
+        )
+        if subordinate:
+            row["accepted"] = False
+            row["rejection_reason"] = "subordinate_same_sign_peak"
+        else:
+            retained.append(row)
+    return rows
+
+
+def rescue_corroborated_opposite_sign_pairs(rows: list[dict], cfg: dict) -> list[dict]:
+    """Allow pressure-minimum displacement only for a resolved vortex dipole."""
+    radius = float(cfg["opposite_sign_pair_radius_cells"])
+    minimum_ratio = float(cfg["minimum_opposite_sign_pair_score_ratio"])
+    maximum_offset = float(cfg["maximum_opposite_sign_pair_pressure_offset_cells"])
+    minimum_ring_support = int(cfg["minimum_pressure_ring_support"])
+    minimum_winding_support = int(cfg["minimum_winding_ring_support"])
+    eligible = [
+        row for row in rows
+        if row["rejection_reason"] == "pressure_minimum_not_corroborated"
+        and row["q_island"]["pass"]
+        and int(row["winding_support"]) >= minimum_winding_support
+        and int(row["pressure_core"]["ring_support"]) >= minimum_ring_support
+        and float(row["pressure_core"]["offset_cells"]) <= maximum_offset
+        and float(row["shock_ridge_distance_cells"])
+        > float(cfg["maximum_shock_ridge_distance_cells"])
+    ]
+    for row in eligible:
+        partner = any(
+            int(row["sign"]) == -int(other["sign"])
+            and math.hypot(
+                int(row["grid_i"]) - int(other["grid_i"]),
+                int(row["grid_j"]) - int(other["grid_j"]),
+            ) <= radius
+            and min(float(row["score"]), float(other["score"]))
+            / max(float(row["score"]), float(other["score"]), 1.0e-300) >= minimum_ratio
+            for other in eligible
+            if other is not row
+        )
+        if partner:
+            row["accepted"] = True
+            row["rejection_reason"] = "accepted_corroborated_opposite_sign_pair"
+            if "pre_shock_accepted" in row:
+                row["pre_shock_accepted"] = True
+    return rows
 
 
 def draw_physical(path: Path, snapshot: dict, original: list[dict], audit: list[dict], shock_mask: np.ndarray, cfg: dict) -> None:
@@ -516,20 +610,31 @@ def main() -> int:
                     "rejection_reason": reason,
                 }
                 audit_rows.append(row)
-                rejection_counter[reason] += int(not accepted)
+            rescue_corroborated_opposite_sign_pairs(audit_rows, cfg)
+            suppress_subordinate_same_sign_peaks(audit_rows, cfg)
+            for row in audit_rows:
+                island = row["q_island"]
+                pressure = row["pressure_core"]
+                winding_support = int(row["winding_support"])
+                shock_distance_cells = float(row["shock_ridge_distance_cells"])
+                reason = str(row["rejection_reason"])
+                rejection_counter[reason] += int(not row["accepted"])
                 feature_rows.append({
-                    "frame_index": frame, "source_member": member, "rank": rank,
+                    "frame_index": frame, "source_member": member, "rank": row["rank"],
                     "x": row["x"], "y": row["y"], "rotation_sign": row["sign"],
                     "q_score": row["score"], "q_island_closed": island["closed"],
                     "q_island_area_cells": island["area_cells"],
                     "q_island_aspect_ratio": island["aspect_ratio"],
+                    "q_island_analysis_radius_cells": island["analysis_radius_cells"],
                     "winding_support": winding_support,
                     "pressure_ring_support": pressure["ring_support"],
+                    "pressure_minimum_offset_cells": pressure["offset_cells"],
                     "shock_ridge_distance_cells": shock_distance_cells,
-                    "pre_shock_accepted": pre_shock, "accepted": accepted,
+                    "pre_shock_accepted": row["pre_shock_accepted"],
+                    "accepted": row["accepted"],
                     "rejection_reason": reason,
                 })
-                if accepted:
+                if row["accepted"]:
                     final_detections.append({
                         "frame_index": frame, "source_member": member,
                         "rank": len(final_detections) + 1, "x": row["x"], "y": row["y"],

@@ -266,6 +266,22 @@ sbatch --export=ALL \
   research/dart_cfd_pilot/scripts/submit_unity_vortex_shock_ridge_aware.sh
 ```
 
+The paired analytic positive/adversarial control is documented in
+[`ANALYTIC_POSITIVE_CONTROL.md`](ANALYTIC_POSITIVE_CONTROL.md). It checks both
+rotation signs, velocity noise through 3%, co- and counter-rotating close
+pairs, shock-vortex distance, and four non-vortex fields. Its close-pair gate
+is per separation rather than averaged. Unity writes its flat downloadable
+archive at the repository root:
+
+```bash
+sbatch --export=ALL \
+  research/dart_cfd_pilot/scripts/submit_unity_vortex_analytic_positive_control.sh
+```
+
+```text
+VORTEX_ANALYTIC_PC_JOBID_COMPLETE.tar.gz
+```
+
 
 
 ## Stage 4: physics-gated track audit
