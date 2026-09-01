@@ -342,6 +342,28 @@ def pressure_core_support(snapshot: dict, candidate: dict, cfg: dict) -> dict:
     }
 
 
+def scale_adaptive_pressure_support(pressure: dict, q_island: dict, cfg: dict) -> dict:
+    """Scale the allowed Q-to-pressure displacement with coherent-core size.
+
+    The original frozen SRA-CMCD configuration omits the optional scale keys,
+    so its decision is unchanged.  A derived method may explicitly enable the
+    scale law while retaining the original absolute lower bound.
+    """
+    result = dict(pressure)
+    baseline = float(cfg["maximum_pressure_minimum_offset_cells"])
+    fraction = float(cfg.get("pressure_offset_equivalent_radius_fraction", 0.0))
+    maximum = float(cfg.get("maximum_scale_adaptive_pressure_offset_cells", baseline))
+    equivalent_radius = math.sqrt(max(float(q_island["area_cells"]), 0.0) / math.pi)
+    allowed = max(baseline, min(maximum, fraction * equivalent_radius))
+    result["equivalent_q_radius_cells"] = equivalent_radius
+    result["allowed_offset_cells"] = allowed
+    result["pass"] = bool(
+        int(result["ring_support"]) >= int(cfg["minimum_pressure_ring_support"])
+        and float(result["offset_cells"]) <= allowed
+    )
+    return result
+
+
 def build_shock_ridge_mask(snapshot: dict, cfg: dict) -> tuple[np.ndarray, np.ndarray]:
     from scipy.ndimage import distance_transform_edt
 
@@ -591,7 +613,9 @@ def main() -> int:
                     row["pass"] = winding_pass(row, cfg)
                 winding_support = sum(bool(row["pass"]) for row in rings)
                 island = closed_q_island(snapshot, candidate, cfg)
-                pressure = pressure_core_support(snapshot, candidate, cfg)
+                pressure = scale_adaptive_pressure_support(
+                    pressure_core_support(snapshot, candidate, cfg), island, cfg
+                )
                 shock_distance_cells = float(shock_distance[int(candidate["grid_i"]), int(candidate["grid_j"])])
                 pre_shock = bool(
                     island["pass"]
