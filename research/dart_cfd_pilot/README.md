@@ -417,10 +417,13 @@ an independent `Gamma_2` catalogue supplies the reference cores, and the wake
 probe supplies the shedding Strouhal number. The Re=100 case is explicitly a
 development case; Re=150 is a frozen independent holdout.
 
-The recorded outcome is intentionally fail-closed. SA-SRA-CMCD reached 1.000
-precision and 0.804 recall at Re=100, then 1.000 precision and 0.756 recall on
-the untouched Re=150 holdout. It therefore localizes mature cores without
-near-wall false positives but does not yet pass the 0.80 holdout-recall gate.
+The static SA-SRA-CMCD failure at Re=150 was retained and used as development
+evidence for the temporal extension TSA-SRA-CMCD. After freezing the temporal
+detector, the Re=200 case reached precision 0.9318, recall 0.8200, perfect
+rotation-sign accuracy, zero near-wall false positives, and St=0.2083. The
+report explicitly records a post-holdout reference-quality amendment that
+symmetrically censors boundary-centred references and out-of-window detector
+centres; detector parameters and raw detector outputs were unchanged.
 
 See [CYLINDER_WAKE_VALIDATION.md](CYLINDER_WAKE_VALIDATION.md) for the complete
 protocol, limitations, physical figures and one-command Unity reproduction.

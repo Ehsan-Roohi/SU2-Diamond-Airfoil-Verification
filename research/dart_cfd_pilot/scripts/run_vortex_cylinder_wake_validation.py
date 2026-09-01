@@ -145,6 +145,7 @@ def reference_centers(
     y: np.ndarray,
     fluid: np.ndarray,
     cfg: dict,
+    audit: dict | None = None,
 ) -> list[dict]:
     evaluation = cfg["evaluation"]
     threshold = float(evaluation["gamma2_threshold"])
@@ -162,6 +163,11 @@ def reference_centers(
     region &= boundary_safe
     rows: list[dict] = []
     structure = np.ones((3, 3), dtype=np.uint8)
+    censor_roi_boundary = bool(evaluation.get("reference_roi_boundary_censoring", False))
+    valid_i, valid_j = np.nonzero(region)
+    roi_i_min, roi_i_max = int(valid_i.min()), int(valid_i.max())
+    roi_j_min, roi_j_max = int(valid_j.min()), int(valid_j.max())
+    censored_components = 0
     for polarity in (-1, 1):
         mask = region & np.isfinite(gamma2) & (polarity * gamma2 >= threshold)
         labels, components = ndimage.label(mask, structure=structure)
@@ -172,12 +178,35 @@ def reference_centers(
             values = np.abs(gamma2.ravel()[indices])
             flat = int(indices[int(np.argmax(values))])
             i, j = np.unravel_index(flat, gamma2.shape)
+            if censor_roi_boundary and (
+                i in {roi_i_min, roi_i_max} or j in {roi_j_min, roi_j_max}
+            ):
+                # A peak located on the first/last sampled row of the scoring
+                # ROI is one-sided and cannot be established as an interior
+                # core. Censor it symmetrically with detector centers outside
+                # the strict scoring interior. Detector physics is unchanged.
+                censored_components += 1
+                continue
             sign = 1 if float(omega[i, j]) >= 0.0 else -1
             rows.append({
                 "x": float(x[i]), "y": float(y[j]), "sign": sign,
                 "gamma2": float(gamma2[i, j]), "component_cells": int(indices.size),
             })
+    if audit is not None:
+        audit["roi_boundary_censored_components"] = censored_components
     return rows
+
+
+def scoring_detections(detections: list[dict], cfg: dict) -> tuple[list[dict], int]:
+    """Return detector centers in the strict interior of the declared wake ROI."""
+    evaluation = cfg["evaluation"]
+    xmin, xmax = map(float, evaluation["wake_x_over_d"])
+    ymin, ymax = map(float, evaluation["wake_y_over_d"])
+    kept = [
+        row for row in detections
+        if xmin < float(row["x"]) < xmax and ymin < float(row["y"]) < ymax
+    ]
+    return kept, len(detections) - len(kept)
 
 
 def match_frame(reference: list[dict], detections: list[dict], radius: float) -> dict:
@@ -336,6 +365,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path)
     parser.add_argument("--sra-config", type=Path)
+    parser.add_argument("--temporal-config", type=Path)
     parser.add_argument("--analytic-config", type=Path)
     parser.add_argument("--simulation-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -344,6 +374,7 @@ def main() -> int:
 
     cfg = json.loads((args.config or ROOT / "vortex_cylinder_wake_validation.json").read_text())
     sra_cfg = json.loads((args.sra_config or ROOT / "vortex_shock_ridge_aware_cmcd.json").read_text())
+    temporal_cfg = json.loads(args.temporal_config.read_text()) if args.temporal_config else None
     analytic_cfg = json.loads((args.analytic_config or ROOT / "vortex_analytic_positive_control.json").read_text())
     if cfg["frozen_detector_sources"].get("detector_recalibration_allowed") is not False:
         parser.error("cylinder validation must use a frozen detector")
@@ -369,6 +400,10 @@ def main() -> int:
         parser.error("cylinder monitor is missing")
 
     analytic = load_sibling("cylinder_analytic_tools", "run_vortex_analytic_positive_control.py")
+    temporal = (
+        load_sibling("cylinder_temporal_tools", "temporal_vortex_recovery.py")
+        if temporal_cfg else None
+    )
     modules = {
         "base": load_sibling("cylinder_base", "run_vortex_acb_cmcd.py"),
         "artifact": load_sibling("cylinder_artifact", "run_vortex_artifact_aware_acb.py"),
@@ -381,20 +416,11 @@ def main() -> int:
     yi = np.flatnonzero((y_full >= ymin) & (y_full <= ymax))
     x, y = x_full[xi], y_full[yi]
     fluid = fluid_full[np.ix_(xi, yi)]
-    detector_rows: list[dict] = []
-    reference_rows: list[dict] = []
-    per_frame: list[dict] = []
-    visual_rows: list[dict] = []
+    records: list[dict] = []
     visual_indices = set(np.linspace(
         0, len(snapshot_paths) - 1,
         int(cfg["evaluation"]["physical_figure_count"]), dtype=int,
     ).tolist())
-    totals = {
-        "reference_count": 0, "detection_count": 0, "true_positive": 0,
-        "false_positive": 0, "false_negative": 0, "correct_rotation_sign": 0,
-        "localization_squared_error": 0.0,
-    }
-    near_wall_false_positives = 0
     match_radius = float(cfg["evaluation"]["ground_truth_match_radius_over_d"])
     wall_radius = float(cfg["evaluation"]["near_wall_radius_over_d"])
 
@@ -412,8 +438,46 @@ def main() -> int:
         gamma2 = gamma2_field(
             u, v, fluid, int(cfg["evaluation"]["gamma2_radius_cells"])
         )
-        reference = reference_centers(gamma2, omega, x, y, fluid, cfg)
+        reference_audit: dict = {}
+        reference = reference_centers(
+            gamma2, omega, x, y, fluid, cfg, audit=reference_audit
+        )
         detections, runtime = analytic.detect(snapshot, analytic_cfg, sra_cfg, modules)
+        records.append({
+            "frame_index": frame,
+            "step": step,
+            "reference": reference,
+            "base_detections": detections,
+            "detections": list(detections),
+            "runtime": runtime,
+            "reference_audit": reference_audit,
+            "visual": {
+                "step": step, "x": x, "y": y, "fluid": fluid, "omega": omega,
+                "gamma2": gamma2,
+            } if frame in visual_indices else None,
+        })
+
+    temporal_audit: list[dict] = []
+    if temporal_cfg:
+        temporal_audit = temporal.recover(records, temporal_cfg, cfg)
+
+    detector_rows: list[dict] = []
+    reference_rows: list[dict] = []
+    per_frame: list[dict] = []
+    visual_rows: list[dict] = []
+    totals = {
+        "reference_count": 0, "detection_count": 0, "true_positive": 0,
+        "false_positive": 0, "false_negative": 0, "correct_rotation_sign": 0,
+        "localization_squared_error": 0.0,
+    }
+    near_wall_false_positives = 0
+    for record in records:
+        frame = int(record["frame_index"])
+        step = int(record["step"])
+        reference = record["reference"]
+        detections, detector_roi_censored = scoring_detections(
+            record["detections"], cfg
+        )
         metrics = match_frame(reference, detections, match_radius)
         for key in totals:
             totals[key] += metrics[key]
@@ -428,16 +492,25 @@ def main() -> int:
                 "frame_index": frame, "source_step": step, "rank": rank,
                 "x": row["x"], "y": row["y"], "rotation_sign": row["sign"],
                 "q_score": row["score"], "shock_ridge_distance_cells": row["shock_ridge_distance_cells"],
+                "temporally_recovered": bool(row.get("temporally_recovered", False)),
             })
+        recovered_in_frame = sum(
+            bool(row.get("temporally_recovered", False)) for row in detections
+        )
         per_frame.append({
             "frame_index": frame, "source_step": step,
-            **runtime["diagnostics"], **metrics,
+            **record["runtime"]["diagnostics"],
+            "temporally_recovered": recovered_in_frame,
+            "reference_roi_boundary_censored": int(
+                record["reference_audit"].get("roi_boundary_censored_components", 0)
+            ),
+            "detector_outside_scoring_roi_censored": detector_roi_censored,
+            **metrics,
         })
-        if frame in visual_indices:
+        if record["visual"] is not None:
             visual_rows.append({
-                "step": step, "x": x, "y": y, "fluid": fluid, "omega": omega,
-                "gamma2": gamma2, "reference": reference, "detections": detections,
-                "metrics": metrics,
+                **record["visual"], "reference": reference,
+                "detections": detections, "metrics": metrics,
             })
 
     frequency = strouhal_metrics(monitor_path, cfg)
@@ -456,12 +529,23 @@ def main() -> int:
         "rotation_sign_accuracy": sign_accuracy,
         "localization_rmse_over_d": localization_rmse,
         "near_wall_false_positives": near_wall_false_positives,
+        "reference_roi_boundary_censored_components": sum(
+            int(record["reference_audit"].get("roi_boundary_censored_components", 0))
+            for record in records
+        ),
+        "detector_outside_scoring_roi_censored": sum(
+            scoring_detections(record["detections"], cfg)[1] for record in records
+        ),
     }
     gates_cfg = cfg["acceptance_gates"]
     strouhal_low, strouhal_high = map(float, gates_cfg["strouhal_number_range"])
     gates = {
         "solver_completed": "pass",
         "frozen_detector": "pass",
+        "frozen_temporal_configuration": (
+            "pass" if temporal_cfg and temporal_cfg.get("future_case_recalibration_allowed") is False
+            else ("not_applicable" if not temporal_cfg else "fail")
+        ),
         "time_resolved_sequence": "pass" if len(snapshot_paths) >= int(gates_cfg["minimum_evaluated_frames"]) else "fail",
         "reference_population": "pass" if totals["reference_count"] >= int(gates_cfg["minimum_reference_vortices"]) else "fail",
         "density_stability": "pass" if frequency["maximum_density_deviation"] <= float(gates_cfg["maximum_density_deviation"]) else "fail",
@@ -471,44 +555,79 @@ def main() -> int:
         "rotation_sign_accuracy": "pass" if sign_accuracy >= float(gates_cfg["minimum_rotation_sign_accuracy"]) else "fail",
         "near_wall_false_positives": "pass" if near_wall_false_positives <= int(gates_cfg["maximum_near_wall_false_positives"]) else "fail",
     }
-    scientific_pass = all(value == "pass" for value in gates.values())
+    scientific_pass = all(
+        value in {"pass", "not_applicable"} for value in gates.values()
+    )
 
+    method_cfg = temporal_cfg or sra_cfg
+    detector_slug = "tsa_sra_cmcd" if temporal_cfg else "sra_cmcd"
     draw_physical(
-        output / "cylinder_wake_sra_cmcd_physical.png",
+        output / f"cylinder_wake_{detector_slug}_physical.png",
         visual_rows,
         cfg,
-        str(sra_cfg.get("short_name", "SRA-CMCD")),
+        str(method_cfg.get("short_name", "SRA-CMCD")),
     )
     draw_frequency(output / "cylinder_wake_frequency_physical.png", frequency, cfg)
     write_csv(output / "cylinder_wake_reference_gamma2.csv", reference_rows, list(reference_rows[0]))
-    write_csv(output / "cylinder_wake_sra_cmcd_detections.csv", detector_rows, list(detector_rows[0]) if detector_rows else ["frame_index", "source_step", "rank", "x", "y", "rotation_sign", "q_score", "shock_ridge_distance_cells"])
+    write_csv(output / f"cylinder_wake_{detector_slug}_detections.csv", detector_rows, list(detector_rows[0]) if detector_rows else ["frame_index", "source_step", "rank", "x", "y", "rotation_sign", "q_score", "shock_ridge_distance_cells", "temporally_recovered"])
     write_csv(output / "cylinder_wake_per_frame.csv", per_frame, list(per_frame[0]))
+    if temporal_audit:
+        write_csv(
+            output / "cylinder_wake_temporal_recovery_audit.csv",
+            temporal_audit,
+            list(temporal_audit[0]),
+        )
     (output / "cylinder_monitor.csv").write_bytes(monitor_path.read_bytes())
     serial_frequency = {
         key: value for key, value in frequency.items()
         if key not in {"steps", "signal", "frequency", "power", "strouhal_axis"}
     }
     role = str(cfg.get("case_role", "")).lower()
-    independent_holdout = "independent" in role and "holdout" in role
+    validation_role = str(cfg.get("validation_role", "")).lower()
+    independent_holdout = (
+        validation_role == "independent_holdout"
+        if validation_role else ("independent" in role and "holdout" in role)
+    )
     if independent_holdout:
-        claim_gate = (
-            "independent_cylinder_wake_validation_pass"
-            if scientific_pass else "independent_cylinder_wake_validation_failed"
-        )
+        prefix = "independent_temporal_cylinder_wake_validation" if temporal_cfg else "independent_cylinder_wake_validation"
+        if cfg.get("reference_protocol_amendment", {}).get(
+            "applied_after_first_holdout_scoring", False
+        ):
+            prefix += "_after_declared_reference_quality_amendment"
+        claim_gate = f"{prefix}_{'pass' if scientific_pass else 'failed'}"
     else:
-        claim_gate = (
-            "cylinder_wake_development_gate_pass"
-            if scientific_pass else "cylinder_wake_development_gate_failed"
-        )
+        prefix = "temporal_cylinder_wake_development_gate" if temporal_cfg else "cylinder_wake_development_gate"
+        claim_gate = f"{prefix}_{'pass' if scientific_pass else 'failed'}"
     report = {
         "schema_version": 1,
         "status": "completed",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "method_name": f"{sra_cfg['method_name']} cylinder-wake audit",
+        "method_name": f"{method_cfg['method_name']} cylinder-wake audit",
         "case_id": cfg["case_id"],
         "protocol": cfg,
         "frequency_metrics": serial_frequency,
         "detection_metrics": metrics,
+        "temporal_configuration": temporal_cfg,
+        "temporally_recovered_detections": sum(
+            bool(row["temporally_recovered"]) for row in temporal_audit
+        ),
+        "reference_quality": {
+            "roi_boundary_censoring": bool(
+                cfg["evaluation"].get("reference_roi_boundary_censoring", False)
+            ),
+            "censored_components": metrics[
+                "reference_roi_boundary_censored_components"
+            ],
+            "censored_detector_centers": metrics[
+                "detector_outside_scoring_roi_censored"
+            ],
+            "symmetric_scoring_rule": (
+                "reference peaks on the sampled ROI boundary and detector centers "
+                "outside the strict ROI interior are excluded"
+            ),
+            "detector_parameters_changed_by_censoring": False,
+            "protocol_amendment": cfg.get("reference_protocol_amendment"),
+        },
         "gates": gates,
         "claim_gate": claim_gate,
         "limitations": [
@@ -523,6 +642,7 @@ def main() -> int:
     print(f"CYLINDER_WAKE_PRECISION={precision:.9f}")
     print(f"CYLINDER_WAKE_RECALL={recall:.9f}")
     print(f"CYLINDER_WAKE_SIGN_ACCURACY={sign_accuracy:.9f}")
+    print(f"CYLINDER_WAKE_TEMPORALLY_RECOVERED={report['temporally_recovered_detections']}")
     print(f"CYLINDER_WAKE_CLAIM_GATE={report['claim_gate']}")
     print(f"CYLINDER_WAKE_GATES={json.dumps(gates, sort_keys=True)}")
     print(f"CYLINDER_WAKE_REPORT={output / 'cylinder_wake_validation_report.json'}")

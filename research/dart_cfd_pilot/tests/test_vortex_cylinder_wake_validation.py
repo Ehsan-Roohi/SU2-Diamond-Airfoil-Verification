@@ -62,6 +62,50 @@ def test_gamma2_reference_finds_a_lamb_oseen_core():
     assert gamma2[peak] >= 2.0 / math.pi
 
 
+def test_gamma2_reference_censors_components_clipped_by_evaluation_roi():
+    pytest.importorskip("scipy")
+    runner = load_module("test_cylinder_reference_censor", RUNNER)
+    x = np.linspace(-1.0, 1.0, 21)
+    gamma2 = np.zeros((21, 21), dtype=float)
+    omega = np.ones_like(gamma2)
+    fluid = np.ones_like(gamma2, dtype=bool)
+    # One interior island and one island cut by the x=0.5 ROI boundary.
+    gamma2[9:12, 9:12] = 0.9
+    gamma2[15:17, 3:7] = 0.9
+    cfg = {"evaluation": {
+        "gamma2_threshold": 0.6,
+        "gamma2_minimum_component_cells": 4,
+        "gamma2_radius_cells": 1,
+        "wake_x_over_d": [-0.5, 0.5],
+        "wake_y_over_d": [-0.8, 0.8],
+        "reference_boundary_margin_cells": 1,
+        "reference_roi_boundary_censoring": True,
+    }}
+    audit = {}
+    rows = runner.reference_centers(gamma2, omega, x, x, fluid, cfg, audit=audit)
+    assert len(rows) == 1
+    assert abs(rows[0]["x"]) <= 0.11
+    assert audit["roi_boundary_censored_components"] == 1
+
+
+def test_scoring_roi_censors_detector_centers_symmetrically():
+    pytest.importorskip("scipy")
+    runner = load_module("test_cylinder_scoring_roi", RUNNER)
+    cfg = {"evaluation": {
+        "wake_x_over_d": [1.0, 14.0],
+        "wake_y_over_d": [-3.0, 3.0],
+    }}
+    detections = [
+        {"x": 2.0, "y": 0.0},
+        {"x": 1.0, "y": 0.0},
+        {"x": 14.2, "y": 0.0},
+        {"x": 2.0, "y": 3.0},
+    ]
+    kept, censored = runner.scoring_detections(detections, cfg)
+    assert kept == [detections[0]]
+    assert censored == 3
+
+
 def test_scale_adaptive_pressure_law_preserves_frozen_default():
     sra = load_module("test_cylinder_sra", SRA_RUNNER)
     pressure = {"ring_support": 2, "offset_cells": 3.0, "pass": False}

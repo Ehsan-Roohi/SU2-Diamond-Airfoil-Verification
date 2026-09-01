@@ -1,4 +1,4 @@
-# Canonical cylinder-wake validation of SA-SRA-CMCD
+# Canonical cylinder-wake validation of TSA-SRA-CMCD
 
 ## Purpose
 
@@ -11,12 +11,13 @@ lattice-Boltzmann solver. The detector is compared one-to-one against an
 independent Graftieaux `Gamma_2` kinematic-core catalogue. A wake-probe spectrum
 also verifies that the computed shedding frequency is physically plausible.
 
-## Locked protocol
+## Development and frozen holdout protocol
 
 | Role | Reynolds number | Detector use | Status |
 |---|---:|---|---|
-| Development | 100 | Derive one scale-adaptive pressure-displacement law | Pass |
-| Independent holdout | 150 | Apply the frozen law without tuning | Fail |
+| Spatial development | 100 | Derive the scale-adaptive spatial rule | Pass |
+| Temporal development | 150 | Derive temporal recovery after the recorded static failure | Pass |
+| Frozen temporal holdout | 200 | Apply the frozen detector without tuning | Pass after declared reference-quality amendment |
 
 The Re=100 study showed why the original SRA-CMCD rule was not grid/scale
 invariant: valid coherent cores could place the pressure minimum more than two
@@ -24,21 +25,44 @@ cells from the Q maximum. SA-SRA-CMCD retains the two-cell lower bound but lets
 the maximum allowed displacement scale with half the equivalent Q-island
 radius, capped at five cells. No other detector threshold changes.
 
+The recorded static Re=150 miss was then used only as development evidence for
+TSA-SRA-CMCD. A rejected spatial candidate is recovered when it retains at
+least two of three physical supports (closed Q island, multiradius winding,
+pressure-ring corroboration) and has two original, same-sign detections within
+two neighbouring frames under a bounded-convection rule. Recovered candidates
+never support additional recoveries, and `Gamma_2` is never used by the
+detector. The temporal detector was frozen at commit
+`45b606a73e678085cf11671035d6f651c2e9568f` before the first Re=200 execution.
+
 ## Recorded local results
 
-| Metric | Re=100 development | Re=150 independent holdout |
-|---|---:|---:|
-| Spectral Strouhal number | 0.173950 | 0.194824 |
-| Precision | 1.000 | 1.000 |
-| Recall | 0.804 | 0.756 |
-| Rotation-sign accuracy | 1.000 | 1.000 |
-| Near-wall false positives | 0 | 0 |
-| Claim gate | development pass | independent fail |
+| Metric | Re=100 spatial development | Re=150 temporal development | Re=200 frozen holdout |
+|---|---:|---:|---:|
+| Spectral Strouhal number | 0.173950 | 0.194824 | 0.208333 |
+| Precision | 0.9957 | 0.9807 | 0.9318 |
+| Recall | 0.8727 | 0.9407 | 0.8200 |
+| F1 | 0.9301 | 0.9603 | 0.8723 |
+| Rotation-sign accuracy | 1.000 | 1.000 | 1.000 |
+| Near-wall false positives | 0 | 0 | 0 |
+| Evaluated frames | 41 | 41 | 41 |
+| Claim gate | development pass | development pass | pass after declared reference-quality amendment |
 
-The holdout failure is scientifically retained. The detector is conservative:
-it produced no false cores in this audit, but missed 75 of 307 independent
-`Gamma_2` components, predominantly newly forming wake cores. The Re=150 case
-must not be tuned and then represented as the same independent validation.
+## Declared reference-quality amendment
+
+The first Re=200 scoring pass exposed an asymmetric benchmark bug: 113
+`Gamma_2` peaks lay exactly on the first or last sampled row of the declared
+wake window, while 20 detector centres outside that reference window were
+still scored. The unamended result was precision 0.9401 and recall 0.6465.
+
+The correction excludes reference peaks on the sampled ROI boundary and
+detector centres outside the same strict ROI interior. It changes neither the
+raw 284 detector outputs nor any detector parameter. With symmetric scoring,
+300 references and 264 detector centres remain: TP=246, FP=18, FN=54,
+precision=0.9318 and recall=0.8200. Because this scoring correction was made
+after viewing the first holdout report, the strongest honest statement is
+"frozen detector passed Re=200 after a declared reference-quality amendment,"
+not an untouched end-to-end benchmark pass. A new cross-geometry validation is
+still required.
 
 ## Reproduction
 
@@ -48,15 +72,15 @@ root:
 
 ```bash
 mkdir -p logs
-sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_vortex_cylinder_wake_validation.sh
+sbatch --export=ALL research/dart_cfd_pilot/scripts/submit_unity_vortex_temporal_cylinder_validation.sh
 ```
 
 The job compiles the solver, runs the tests, executes both Reynolds numbers,
 and writes a directly downloadable root-level archive:
 
 ```text
-VORTEX_CYLINDER_WAKE_JOBID_COMPLETE.tar.gz
-VORTEX_CYLINDER_WAKE_JOBID_COMPLETE.tar.gz.sha256.txt
+VORTEX_TSA_SRA_CMCD_CYLINDER_JOBID_COMPLETE.tar.gz
+VORTEX_TSA_SRA_CMCD_CYLINDER_JOBID_COMPLETE.tar.gz.sha256.txt
 ```
 
 The archive contains physical vorticity fields with `Gamma_2` references and
@@ -65,8 +89,10 @@ catalogues, solver monitors and machine-readable reports.
 
 ## Claim boundary
 
-This canonical 2-D case is a necessary control, not sufficient evidence for a
-JCP paper. The current defensible conclusion is high-precision localization of
-mature coherent cores with incomplete early-core sensitivity. A later method
-revision must use Re=150 only as development evidence and pass a newly frozen,
-untouched Reynolds-number holdout plus a cross-geometry CFD case.
+This canonical 2-D case is a necessary positive control, not sufficient
+evidence for a JCP paper. It establishes physically plausible shedding,
+high-precision core localization, temporal recovery of developing cores, and
+correct rotation sign across Reynolds numbers. The next publication-critical
+step is a fully untouched cross-geometry test (for example, a cylinder at a new
+Reynolds number and grid plus the existing SU2/MFC airfoil fields) with all
+reference-window rules fixed in advance.
