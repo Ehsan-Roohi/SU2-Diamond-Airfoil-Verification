@@ -95,3 +95,23 @@ def test_temporal_protocol_is_frozen_and_gamma2_independent():
     assert holdout["solver"]["reynolds_number"] == 200.0
     assert "independent" in holdout["case_role"]
     assert "not independent" in development["case_role"]
+
+
+def test_holdout_declares_reference_amendment_without_detector_change():
+    holdout = json.loads(
+        (ROOT / "vortex_cylinder_wake_re200_temporal_holdout.json").read_text()
+    )
+    amendment = holdout["reference_protocol_amendment"]
+    assert amendment["applied_after_first_holdout_scoring"] is True
+    assert amendment["detector_parameters_changed"] is False
+    assert amendment["raw_detector_detections_unchanged"] is True
+    assert amendment["additional_untouched_cross_geometry_validation_required"] is True
+
+
+def test_temporal_unity_archive_is_flat_and_technically_named():
+    submit = ROOT / "scripts" / "submit_unity_vortex_temporal_cylinder_validation.sh"
+    text = submit.read_text()
+    assert "${PROJECT_ROOT}/VORTEX_TSA_SRA_CMCD_CYLINDER_" in text
+    assert "PYTHONNOUSERSITE=1" in text
+    assert "DETECTOR_FREEZE_COMMIT" in text
+    assert "stage" not in submit.name

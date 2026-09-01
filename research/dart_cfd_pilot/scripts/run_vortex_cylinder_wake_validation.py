@@ -145,6 +145,7 @@ def reference_centers(
     y: np.ndarray,
     fluid: np.ndarray,
     cfg: dict,
+    audit: dict | None = None,
 ) -> list[dict]:
     evaluation = cfg["evaluation"]
     threshold = float(evaluation["gamma2_threshold"])
@@ -162,6 +163,11 @@ def reference_centers(
     region &= boundary_safe
     rows: list[dict] = []
     structure = np.ones((3, 3), dtype=np.uint8)
+    censor_roi_boundary = bool(evaluation.get("reference_roi_boundary_censoring", False))
+    valid_i, valid_j = np.nonzero(region)
+    roi_i_min, roi_i_max = int(valid_i.min()), int(valid_i.max())
+    roi_j_min, roi_j_max = int(valid_j.min()), int(valid_j.max())
+    censored_components = 0
     for polarity in (-1, 1):
         mask = region & np.isfinite(gamma2) & (polarity * gamma2 >= threshold)
         labels, components = ndimage.label(mask, structure=structure)
@@ -172,12 +178,35 @@ def reference_centers(
             values = np.abs(gamma2.ravel()[indices])
             flat = int(indices[int(np.argmax(values))])
             i, j = np.unravel_index(flat, gamma2.shape)
+            if censor_roi_boundary and (
+                i in {roi_i_min, roi_i_max} or j in {roi_j_min, roi_j_max}
+            ):
+                # A peak located on the first/last sampled row of the scoring
+                # ROI is one-sided and cannot be established as an interior
+                # core. Censor it symmetrically with detector centers outside
+                # the strict scoring interior. Detector physics is unchanged.
+                censored_components += 1
+                continue
             sign = 1 if float(omega[i, j]) >= 0.0 else -1
             rows.append({
                 "x": float(x[i]), "y": float(y[j]), "sign": sign,
                 "gamma2": float(gamma2[i, j]), "component_cells": int(indices.size),
             })
+    if audit is not None:
+        audit["roi_boundary_censored_components"] = censored_components
     return rows
+
+
+def scoring_detections(detections: list[dict], cfg: dict) -> tuple[list[dict], int]:
+    """Return detector centers in the strict interior of the declared wake ROI."""
+    evaluation = cfg["evaluation"]
+    xmin, xmax = map(float, evaluation["wake_x_over_d"])
+    ymin, ymax = map(float, evaluation["wake_y_over_d"])
+    kept = [
+        row for row in detections
+        if xmin < float(row["x"]) < xmax and ymin < float(row["y"]) < ymax
+    ]
+    return kept, len(detections) - len(kept)
 
 
 def match_frame(reference: list[dict], detections: list[dict], radius: float) -> dict:
@@ -409,7 +438,10 @@ def main() -> int:
         gamma2 = gamma2_field(
             u, v, fluid, int(cfg["evaluation"]["gamma2_radius_cells"])
         )
-        reference = reference_centers(gamma2, omega, x, y, fluid, cfg)
+        reference_audit: dict = {}
+        reference = reference_centers(
+            gamma2, omega, x, y, fluid, cfg, audit=reference_audit
+        )
         detections, runtime = analytic.detect(snapshot, analytic_cfg, sra_cfg, modules)
         records.append({
             "frame_index": frame,
@@ -418,6 +450,7 @@ def main() -> int:
             "base_detections": detections,
             "detections": list(detections),
             "runtime": runtime,
+            "reference_audit": reference_audit,
             "visual": {
                 "step": step, "x": x, "y": y, "fluid": fluid, "omega": omega,
                 "gamma2": gamma2,
@@ -442,7 +475,9 @@ def main() -> int:
         frame = int(record["frame_index"])
         step = int(record["step"])
         reference = record["reference"]
-        detections = record["detections"]
+        detections, detector_roi_censored = scoring_detections(
+            record["detections"], cfg
+        )
         metrics = match_frame(reference, detections, match_radius)
         for key in totals:
             totals[key] += metrics[key]
@@ -466,6 +501,10 @@ def main() -> int:
             "frame_index": frame, "source_step": step,
             **record["runtime"]["diagnostics"],
             "temporally_recovered": recovered_in_frame,
+            "reference_roi_boundary_censored": int(
+                record["reference_audit"].get("roi_boundary_censored_components", 0)
+            ),
+            "detector_outside_scoring_roi_censored": detector_roi_censored,
             **metrics,
         })
         if record["visual"] is not None:
@@ -490,6 +529,13 @@ def main() -> int:
         "rotation_sign_accuracy": sign_accuracy,
         "localization_rmse_over_d": localization_rmse,
         "near_wall_false_positives": near_wall_false_positives,
+        "reference_roi_boundary_censored_components": sum(
+            int(record["reference_audit"].get("roi_boundary_censored_components", 0))
+            for record in records
+        ),
+        "detector_outside_scoring_roi_censored": sum(
+            scoring_detections(record["detections"], cfg)[1] for record in records
+        ),
     }
     gates_cfg = cfg["acceptance_gates"]
     strouhal_low, strouhal_high = map(float, gates_cfg["strouhal_number_range"])
@@ -544,6 +590,10 @@ def main() -> int:
     )
     if independent_holdout:
         prefix = "independent_temporal_cylinder_wake_validation" if temporal_cfg else "independent_cylinder_wake_validation"
+        if cfg.get("reference_protocol_amendment", {}).get(
+            "applied_after_first_holdout_scoring", False
+        ):
+            prefix += "_after_declared_reference_quality_amendment"
         claim_gate = f"{prefix}_{'pass' if scientific_pass else 'failed'}"
     else:
         prefix = "temporal_cylinder_wake_development_gate" if temporal_cfg else "cylinder_wake_development_gate"
@@ -561,6 +611,23 @@ def main() -> int:
         "temporally_recovered_detections": sum(
             bool(row["temporally_recovered"]) for row in temporal_audit
         ),
+        "reference_quality": {
+            "roi_boundary_censoring": bool(
+                cfg["evaluation"].get("reference_roi_boundary_censoring", False)
+            ),
+            "censored_components": metrics[
+                "reference_roi_boundary_censored_components"
+            ],
+            "censored_detector_centers": metrics[
+                "detector_outside_scoring_roi_censored"
+            ],
+            "symmetric_scoring_rule": (
+                "reference peaks on the sampled ROI boundary and detector centers "
+                "outside the strict ROI interior are excluded"
+            ),
+            "detector_parameters_changed_by_censoring": False,
+            "protocol_amendment": cfg.get("reference_protocol_amendment"),
+        },
         "gates": gates,
         "claim_gate": claim_gate,
         "limitations": [

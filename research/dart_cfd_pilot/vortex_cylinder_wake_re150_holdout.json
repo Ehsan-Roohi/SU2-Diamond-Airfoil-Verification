@@ -28,6 +28,7 @@
     "gamma2_threshold": 0.6366197723675814,
     "gamma2_minimum_component_cells": 3,
     "reference_boundary_margin_cells": 6,
+    "reference_roi_boundary_censoring": true,
     "ground_truth_match_radius_over_d": 0.70,
     "near_wall_radius_over_d": 0.75,
     "gaussian_sigmas": [0.0, 1.0, 2.0],
