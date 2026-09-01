@@ -33,7 +33,7 @@ readonly SENSITIVITY_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_squa
 readonly SPATIAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_scale_adaptive_sra_cmcd.json"
 readonly TEMPORAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_temporal_sa_sra_cmcd.json"
 readonly DETECTOR_FREEZE_COMMIT="7d9b27753dde34787c0689168dc5c58fa7a1b1ad"
-readonly HOLDOUT_PROTOCOL_FREEZE_COMMIT="39a46aafd8fe1718611a32fdc216be7565696a1c"
+readonly HOLDOUT_PROTOCOL_FREEZE_COMMIT="acd06a200d7854ed2938fbdbfc529e636a0166bf"
 
 mkdir -p \
   "${PROJECT_ROOT}/logs" \

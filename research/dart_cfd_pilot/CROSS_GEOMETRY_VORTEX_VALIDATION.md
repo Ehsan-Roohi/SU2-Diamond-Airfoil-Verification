@@ -10,7 +10,7 @@ all acceptance thresholds are frozen before the first square-cylinder run.
 - Case: two-dimensional D2Q9 BGK square-cylinder wake, Re=150.
 - Geometry: side length D, halfway bounce-back, 10% blockage.
 - Detector freeze: `7d9b27753dde34787c0689168dc5c58fa7a1b1ad`.
-- Holdout protocol freeze: `39a46aafd8fe1718611a32fdc216be7565696a1c`.
+- Holdout protocol freeze: `acd06a200d7854ed2938fbdbfc529e636a0166bf`.
 - Independent reference: Gamma2 components; Gamma2 is not used by the detector.
 - Predeclared frequency gate: 0.10 <= St <= 0.16.
 - Detection gates: precision and recall >= 0.80, rotation-sign accuracy >= 0.95,
@@ -44,4 +44,3 @@ against an independent kinematic reference.  It is not a full physical
 validation of the square-cylinder solver.  Publication claims must report the
 failed frequency gate and use an independently verified CFD or experimental
 sequence for the next cross-geometry test.
-
