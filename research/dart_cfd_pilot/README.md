@@ -408,3 +408,19 @@ The expected outcome is deliberately fail-closed: high precision with sparse
 coverage is recorded as
 `diagnostic_high_precision_sparse_vortex_localization`, not as validated
 comprehensive vortex tracking.
+
+## Canonical cylinder-wake validation
+
+The current physics-first method is also audited on a CPU-generated viscous
+von Karman street. A D2Q9 BGK cylinder solver supplies time-resolved fields,
+an independent `Gamma_2` catalogue supplies the reference cores, and the wake
+probe supplies the shedding Strouhal number. The Re=100 case is explicitly a
+development case; Re=150 is a frozen independent holdout.
+
+The recorded outcome is intentionally fail-closed. SA-SRA-CMCD reached 1.000
+precision and 0.804 recall at Re=100, then 1.000 precision and 0.756 recall on
+the untouched Re=150 holdout. It therefore localizes mature cores without
+near-wall false positives but does not yet pass the 0.80 holdout-recall gate.
+
+See [CYLINDER_WAKE_VALIDATION.md](CYLINDER_WAKE_VALIDATION.md) for the complete
+protocol, limitations, physical figures and one-command Unity reproduction.
