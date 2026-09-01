@@ -178,7 +178,9 @@ def detect(snapshot: dict, cfg: dict, sra_cfg: dict, modules: dict) -> tuple[lis
         ]
         winding_support = sum(sra.winding_pass(row, sra_cfg) for row in rings)
         island = sra.closed_q_island(work, candidate, sra_cfg)
-        pressure = sra.pressure_core_support(work, candidate, sra_cfg)
+        pressure = sra.scale_adaptive_pressure_support(
+            sra.pressure_core_support(work, candidate, sra_cfg), island, sra_cfg
+        )
         i, j = int(candidate["grid_i"]), int(candidate["grid_j"])
         distance = float(shock_distance[i, j])
         accepted, reason = sra.revised_decision(island, winding_support, pressure, distance, sra_cfg)
