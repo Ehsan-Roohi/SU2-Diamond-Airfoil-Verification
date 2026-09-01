@@ -32,7 +32,7 @@ pressure-ring corroboration) and has two original, same-sign detections within
 two neighbouring frames under a bounded-convection rule. Recovered candidates
 never support additional recoveries, and `Gamma_2` is never used by the
 detector. The temporal detector was frozen at commit
-`45b606a73e678085cf11671035d6f651c2e9568f` before the first Re=200 execution.
+`7d9b27753dde34787c0689168dc5c58fa7a1b1ad` before the first Re=200 execution.
 
 ## Recorded local results
 
