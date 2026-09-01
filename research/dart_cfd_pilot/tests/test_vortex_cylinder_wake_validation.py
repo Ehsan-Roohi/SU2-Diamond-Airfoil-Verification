@@ -89,6 +89,7 @@ def test_gamma2_reference_censors_components_clipped_by_evaluation_roi():
 
 
 def test_scoring_roi_censors_detector_centers_symmetrically():
+    pytest.importorskip("scipy")
     runner = load_module("test_cylinder_scoring_roi", RUNNER)
     cfg = {"evaluation": {
         "wake_x_over_d": [1.0, 14.0],
