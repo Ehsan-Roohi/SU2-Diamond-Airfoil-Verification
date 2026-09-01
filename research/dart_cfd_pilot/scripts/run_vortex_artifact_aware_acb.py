@@ -245,13 +245,24 @@ def load_detections(path: Path) -> dict[int, list[dict]]:
     return by_frame
 
 
-def point_detected(point: dict, detections: list[dict], radius: float) -> bool:
+def candidate_identity_survives(
+    point: dict,
+    detections: list[dict],
+    identity_tolerance: float,
+) -> bool:
+    """Return whether the exact audited candidate survives filtering.
+
+    The audit points were sampled from the frozen candidate catalogue and the
+    artifact filter does not move candidate coordinates. A broad physical
+    matching radius would incorrectly reassign a rejected wall or shock point
+    to a distinct nearby vortex.
+    """
     return any(
         int(point["rotation_sign"]) == int(row["sign"])
         and math.hypot(
             float(point["x_physical"]) - float(row["x"]),
             float(point["y_physical"]) - float(row["y"]),
-        ) <= radius
+        ) <= identity_tolerance
         for row in detections
     )
 
@@ -286,7 +297,7 @@ def score_blind_audit(
     labels_path: Path,
     baseline: dict[int, list[dict]],
     artifact_aware: dict[int, list[dict]],
-    radius: float,
+    identity_tolerance: float,
 ) -> tuple[list[dict], dict]:
     labels = {row["audit_id"]: row for row in read_csv(labels_path)}
     rows: list[dict] = []
@@ -298,8 +309,7 @@ def score_blind_audit(
         rows.append({
             **point,
             **label,
-            "baseline_detected": point_detected(point, baseline.get(frame, []), radius),
-            "artifact_aware_detected": point_detected(point, artifact_aware.get(frame, []), radius),
+            "baseline_detected": candidate_identity_survives(\n                point, baseline.get(frame, []), identity_tolerance\n            ),\n            "artifact_aware_detected": candidate_identity_survives(\n                point, artifact_aware.get(frame, []), identity_tolerance\n            ),
         })
     baseline_metrics = confusion(rows, "baseline_detected")
     artifact_metrics = confusion(rows, "artifact_aware_detected")
@@ -464,7 +474,7 @@ def main() -> int:
         args.expert_labels.resolve(),
         baseline,
         artifact_by_frame,
-        float(cfg["expert_match_radius"]),
+        float(cfg["audit_identity_tolerance"]),
     )
 
     baseline_expert = expert["baseline_acb_cmcd"]
@@ -521,6 +531,7 @@ def main() -> int:
             "expert_labels_used_for_numeric_threshold_optimization": False,
             "physics_reference_used_for_detection": False,
             "uncertain_labels_excluded_from_confusion_matrix": True,
+            "visual_audit_matching": "exact candidate identity; no spatial reassignment to nearby cores",
             "visual_audit_role": "development resubstitution diagnostic; not independent validation",
         },
         "expert_audit": expert,
