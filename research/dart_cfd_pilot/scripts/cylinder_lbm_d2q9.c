@@ -98,12 +98,12 @@ static int write_snapshot(const char *directory, int step, int nx, int ny,
 static void usage(const char *program) {
     fprintf(stderr,
             "usage: %s NX NY DIAMETER RE U STEPS SAMPLE_START SNAPSHOT_STRIDE "
-            "MONITOR_STRIDE OUTPUT_DIR\n",
+            "MONITOR_STRIDE OUTPUT_DIR [circle|square]\n",
             program);
 }
 
 int main(int argc, char **argv) {
-    if (argc != 11) {
+    if (argc != 11 && argc != 12) {
         usage(argv[0]);
         return 2;
     }
@@ -117,6 +117,13 @@ int main(int argc, char **argv) {
     const int snapshot_stride = atoi(argv[8]);
     const int monitor_stride = atoi(argv[9]);
     const char *output_dir = argv[10];
+    const char *obstacle_shape = (argc == 12) ? argv[11] : "circle";
+    const int square_obstacle = strcmp(obstacle_shape, "square") == 0;
+    if (!square_obstacle && strcmp(obstacle_shape, "circle") != 0) {
+        fprintf(stderr, "unsupported obstacle shape: %s\n", obstacle_shape);
+        usage(argv[0]);
+        return 2;
+    }
     if (nx < 64 || ny < 48 || diameter < 6.0 || reynolds <= 0.0 || inlet_u <= 0.0 ||
         inlet_u >= 0.15 || steps < 1 || sample_start < 0 || snapshot_stride < 1 ||
         monitor_stride < 1) {
@@ -152,7 +159,11 @@ int main(int argc, char **argv) {
         for (int y = 0; y < ny; ++y) {
             const double dx = (double)x - cylinder_x;
             const double dy = (double)y - cylinder_y;
-            solid[cell_index(x, y, ny)] = (uint8_t)(dx * dx + dy * dy <= radius * radius);
+            solid[cell_index(x, y, ny)] = (uint8_t)(
+                square_obstacle
+                    ? (fabs(dx) <= radius && fabs(dy) <= radius)
+                    : (dx * dx + dy * dy <= radius * radius)
+            );
         }
     }
 
@@ -188,6 +199,12 @@ int main(int argc, char **argv) {
         free(f); free(post); free(next); free(solid);
         return 2;
     }
+    if (setvbuf(monitor, NULL, _IONBF, 0) != 0) {
+        fprintf(stderr, "cannot make monitor output unbuffered\n");
+        fclose(monitor);
+        free(f); free(post); free(next); free(solid);
+        return 2;
+    }
     fprintf(monitor, "step,probe_u,probe_v,rho_min,rho_max\n");
     const int probe_x = (int)lround(cylinder_x + 4.0 * diameter);
     const int probe_y = (int)lround(cylinder_y);
@@ -195,6 +212,7 @@ int main(int argc, char **argv) {
     printf("LBM_CYLINDER_NX=%d\nLBM_CYLINDER_NY=%d\n", nx, ny);
     printf("LBM_CYLINDER_RE=%.9g\nLBM_CYLINDER_U=%.9g\n", reynolds, inlet_u);
     printf("LBM_CYLINDER_DIAMETER=%.9g\nLBM_CYLINDER_TAU=%.12g\n", diameter, tau);
+    printf("LBM_OBSTACLE_SHAPE=%s\n", obstacle_shape);
     fflush(stdout);
 
     for (int step = 0; step <= steps; ++step) {
@@ -214,8 +232,13 @@ int main(int argc, char **argv) {
                 if (rho < rho_min) rho_min = rho;
                 if (rho > rho_max) rho_max = rho;
             }
-            fprintf(monitor, "%d,%.12e,%.12e,%.12e,%.12e\n",
-                    step, probe_u, probe_v, rho_min, rho_max);
+            if (fprintf(monitor, "%d,%.12e,%.12e,%.12e,%.12e\n",
+                        step, probe_u, probe_v, rho_min, rho_max) < 0) {
+                fprintf(stderr, "failed to write monitor output at step %d\n", step);
+                fclose(monitor);
+                free(f); free(post); free(next); free(solid);
+                return 3;
+            }
             if (!isfinite(rho_min) || !isfinite(rho_max) || rho_min <= 0.0 || rho_max > 2.0) {
                 fprintf(stderr, "LBM diverged at step %d: rho=[%g,%g]\n", step, rho_min, rho_max);
                 fclose(monitor);
@@ -310,7 +333,11 @@ int main(int argc, char **argv) {
         next = temporary;
     }
 
-    fclose(monitor);
+    if (fclose(monitor) != 0) {
+        fprintf(stderr, "failed to close monitor output: %s\n", strerror(errno));
+        free(f); free(post); free(next); free(solid);
+        return 3;
+    }
     printf("LBM_CYLINDER_STATUS=completed\n");
     printf("LBM_CYLINDER_MONITOR=%s\n", monitor_path);
     fflush(stdout);
