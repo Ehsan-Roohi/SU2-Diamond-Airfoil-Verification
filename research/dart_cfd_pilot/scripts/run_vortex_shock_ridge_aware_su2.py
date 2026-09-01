@@ -113,25 +113,61 @@ def derive_native_ogrid_fields(raw: dict[str, np.ndarray], radial: int, circumfe
     }
 
 
+def structured_ogrid_triangulation(
+    coordinates: np.ndarray,
+    radial: int,
+    circumferential: int,
+):
+    """Triangulate only genuine neighboring cells of the logical SU2 O-grid.
+
+    A point-cloud Delaunay triangulation fills the airfoil hole and may connect
+    distant nodes across the wrapped O-grid.  Those non-mesh edges create
+    triangular velocity-gradient artifacts that look like vortex cores.  The
+    explicit connectivity below preserves both the inner boundary and the
+    periodic circumferential seam.
+    """
+    import matplotlib.tri as mtri
+
+    expected = radial * circumferential
+    if coordinates.shape != (expected, 2):
+        raise RuntimeError(
+            f"SU2 O-grid coordinate size mismatch: expected {(expected, 2)}, "
+            f"found {coordinates.shape}"
+        )
+    cells = np.arange(expected, dtype=np.int64).reshape(radial, circumferential)
+    lower = cells[:-1]
+    upper = cells[1:]
+    lower_next = np.roll(lower, -1, axis=1)
+    upper_next = np.roll(upper, -1, axis=1)
+    triangles = np.concatenate(
+        (
+            np.column_stack((lower.ravel(), upper.ravel(), upper_next.ravel())),
+            np.column_stack((lower.ravel(), upper_next.ravel(), lower_next.ravel())),
+        ),
+        axis=0,
+    )
+    return mtri.Triangulation(coordinates[:, 0], coordinates[:, 1], triangles)
+
+
 def interpolate_native_fields(
     triangulation,
     native: dict[str, np.ndarray],
     x: np.ndarray,
     y: np.ndarray,
 ) -> dict[str, np.ndarray]:
-    from scipy.interpolate import LinearNDInterpolator
+    from matplotlib.tri import LinearTriInterpolator
 
     interpolators = {
-        name: LinearNDInterpolator(triangulation, values, fill_value=np.nan)
+        name: LinearTriInterpolator(triangulation, values)
         for name, values in native.items()
     }
     fields = {name: np.empty((x.size, y.size), dtype=float) for name in native}
     for i0 in range(0, x.size, 96):
         i1 = min(i0 + 96, x.size)
         xx, yy = np.meshgrid(x[i0:i1], y, indexing="ij")
-        points = np.column_stack((xx.ravel(), yy.ravel()))
         for name, interpolator in interpolators.items():
-            fields[name][i0:i1] = interpolator(points).reshape(i1 - i0, y.size)
+            interpolated = interpolator(xx, yy)
+            fields[name][i0:i1] = np.ma.filled(interpolated, np.nan)
     return fields
 
 
