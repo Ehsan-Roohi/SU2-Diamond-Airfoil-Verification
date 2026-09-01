@@ -27,6 +27,13 @@ failure families and therefore informed this method's feature design. These
 new blind-validation set or a prevalence-weighted precision estimate. The
 next case must keep all parameters frozen and use independent human labels.
 
+Because each audit point is an identity sampled from the frozen candidate
+catalogue and artifact filtering does not move candidates, survival is scored
+by exact coordinate and rotation-sign identity. A broad physical match radius
+is reserved for comparison with an independent field-derived reference; using
+it for the visual audit can incorrectly reassign a rejected wall point to a
+distinct nearby vortex.
+
 ## Unity execution
 
 The run reuses the completed Mach-3, alpha-30 raw MFC fields and does not run
