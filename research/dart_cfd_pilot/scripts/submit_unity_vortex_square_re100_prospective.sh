@@ -32,7 +32,8 @@ readonly CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_square_cylinder_
 readonly SPATIAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_scale_adaptive_sra_cmcd.json"
 readonly TEMPORAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_temporal_sa_sra_cmcd.json"
 readonly DETECTOR_FREEZE_COMMIT="7d9b27753dde34787c0689168dc5c58fa7a1b1ad"
-readonly PROTOCOL_FREEZE_COMMIT="cf98501f6e79c7052a6ad48e9f9e8e680744d265"
+readonly LOCAL_PREEXECUTION_PROTOCOL_FREEZE_COMMIT="cf98501f6e79c7052a6ad48e9f9e8e680744d265"
+readonly PUBLISHED_PROTOCOL_RECORD_COMMIT="b6a782f772cb1da64096f2f339532d2ed296ad6c"
 
 mkdir -p "${PROJECT_ROOT}/logs" "${OUTPUT_DIR}" "${SIMULATION_DIR}" \
   "${WORK_ROOT}/matplotlib" "${WORK_ROOT}/pip-cache"
@@ -48,7 +49,7 @@ fi
 
 cd "${PROJECT_ROOT}"
 git cat-file -e "${DETECTOR_FREEZE_COMMIT}^{commit}"
-git cat-file -e "${PROTOCOL_FREEZE_COMMIT}^{commit}"
+git cat-file -e "${PUBLISHED_PROTOCOL_RECORD_COMMIT}^{commit}"
 "${PYTHON_BIN}" -m pytest -q \
   research/dart_cfd_pilot/tests/test_vortex_cylinder_wake_validation.py \
   research/dart_cfd_pilot/tests/test_vortex_temporal_cylinder_validation.py \
@@ -73,7 +74,8 @@ fi
   echo "job_id=${JOB_ID}"
   echo "git_commit=$(git rev-parse HEAD)"
   echo "detector_freeze_commit=${DETECTOR_FREEZE_COMMIT}"
-  echo "protocol_freeze_commit=${PROTOCOL_FREEZE_COMMIT}"
+  echo "local_preexecution_protocol_freeze_commit=${LOCAL_PREEXECUTION_PROTOCOL_FREEZE_COMMIT}"
+  echo "published_protocol_record_commit=${PUBLISHED_PROTOCOL_RECORD_COMMIT}"
   echo "scientific_rc=${RUN_RC}"
   echo "host=$(hostname)"
   "${PYTHON_BIN}" --version

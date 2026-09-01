@@ -3,7 +3,10 @@
 ## Frozen protocol
 
 - Detector: TSA-SRA-CMCD-v2.
-- Detector and holdout freeze commit: `0b895f34e05e0c7f990a8ed1a551c4755713dc1c`.
+- Local pre-execution detector and holdout freeze commit:
+  `0b895f34e05e0c7f990a8ed1a551c4755713dc1c`.
+- Published GitHub protocol-record commit (without this result document):
+  `b6a782f772cb1da64096f2f339532d2ed296ad6c`.
 - Holdout: two-dimensional D2Q9 BGK square-cylinder wake, Re=120, 5% blockage.
 - Reference: independent Gamma2 components; Gamma2 was never used by the detector.
 - The result was evaluated once after the detector, solver, matching rule, and

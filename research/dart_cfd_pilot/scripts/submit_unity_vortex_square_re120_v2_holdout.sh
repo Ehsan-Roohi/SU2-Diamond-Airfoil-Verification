@@ -31,8 +31,8 @@ readonly RUNNER="${PROJECT_ROOT}/research/dart_cfd_pilot/scripts/run_vortex_cyli
 readonly CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_square_cylinder_re120_v2_holdout.json"
 readonly SPATIAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_scale_adaptive_sra_cmcd.json"
 readonly TEMPORAL_CONFIG="${PROJECT_ROOT}/research/dart_cfd_pilot/vortex_temporal_wide_window_tsa_sra_cmcd_v2.json"
-readonly V2_FREEZE_COMMIT="0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
-readonly HOLDOUT_FREEZE_COMMIT="0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
+readonly LOCAL_PREEXECUTION_FREEZE_COMMIT="0b895f34e05e0c7f990a8ed1a551c4755713dc1c"
+readonly PUBLISHED_PROTOCOL_RECORD_COMMIT="b6a782f772cb1da64096f2f339532d2ed296ad6c"
 
 mkdir -p "${PROJECT_ROOT}/logs" "${OUTPUT_DIR}" "${SIMULATION_DIR}" \
   "${WORK_ROOT}/matplotlib" "${WORK_ROOT}/pip-cache"
@@ -47,8 +47,7 @@ if ! "${PYTHON_BIN}" -c 'import matplotlib.pyplot, numpy, pytest, scipy'; then
 fi
 
 cd "${PROJECT_ROOT}"
-git cat-file -e "${V2_FREEZE_COMMIT}^{commit}"
-git cat-file -e "${HOLDOUT_FREEZE_COMMIT}^{commit}"
+git cat-file -e "${PUBLISHED_PROTOCOL_RECORD_COMMIT}^{commit}"
 "${PYTHON_BIN}" -m pytest -q \
   research/dart_cfd_pilot/tests/test_vortex_cylinder_wake_validation.py \
   research/dart_cfd_pilot/tests/test_vortex_temporal_cylinder_validation.py \
@@ -72,8 +71,8 @@ fi
 {
   echo "job_id=${JOB_ID}"
   echo "git_commit=$(git rev-parse HEAD)"
-  echo "v2_freeze_commit=${V2_FREEZE_COMMIT}"
-  echo "holdout_freeze_commit=${HOLDOUT_FREEZE_COMMIT}"
+  echo "local_preexecution_freeze_commit=${LOCAL_PREEXECUTION_FREEZE_COMMIT}"
+  echo "published_protocol_record_commit=${PUBLISHED_PROTOCOL_RECORD_COMMIT}"
   echo "scientific_rc=${RUN_RC}"
   echo "host=$(hostname)"
   "${PYTHON_BIN}" --version

@@ -53,7 +53,8 @@
     "spatial_configuration": "vortex_scale_adaptive_sra_cmcd.json",
     "temporal_configuration": "vortex_temporal_sa_sra_cmcd.json",
     "detector_freeze_commit": "7d9b27753dde34787c0689168dc5c58fa7a1b1ad",
-    "prospective_protocol_freeze_commit": "cf98501f6e79c7052a6ad48e9f9e8e680744d265",
+    "local_preexecution_protocol_freeze_commit": "cf98501f6e79c7052a6ad48e9f9e8e680744d265",
+    "published_protocol_record_commit": "b6a782f772cb1da64096f2f339532d2ed296ad6c",
     "detector_recalibration_allowed": false,
     "prior_observed_square_case": "d2q9_lbm_square_cylinder_re150_cross_geometry_holdout",
     "prospective_parameter": "Reynolds number 100"
