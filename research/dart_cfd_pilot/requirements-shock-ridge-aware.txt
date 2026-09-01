@@ -1,0 +1,6 @@
+# Frozen CPU analysis stack for SRA-CMCD Unity jobs.
+# PYTHONNOUSERSITE=1 prevents incomplete ~/.local packages from shadowing it.
+numpy==1.26.4
+scipy==1.17.1
+matplotlib==3.10.8
+pytest==8.4.2

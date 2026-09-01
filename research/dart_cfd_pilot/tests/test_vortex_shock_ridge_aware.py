@@ -92,6 +92,7 @@ def test_pressure_corroboration_precedes_shock_distance():
 def test_protocol_names_development_case_and_flat_root_archive():
     cfg = configuration()
     submit = (ROOT / "scripts" / "submit_unity_vortex_shock_ridge_aware.sh").read_text()
+    requirements = (ROOT / "requirements-shock-ridge-aware.txt").read_text()
     runner = SCRIPT.read_text()
     assert cfg["method_name"].startswith("Shock-Ridge-Aware")
     assert "development_negative_control" in cfg["case_id"]
@@ -99,3 +100,7 @@ def test_protocol_names_development_case_and_flat_root_archive():
     assert "never independent validation" in runner
     assert "VORTEX_SHOCK_RIDGE_CMCD_${JOB_ID}_COMPLETE.tar.gz" in submit
     assert "${PROJECT_ROOT}/VORTEX_SHOCK_RIDGE_CMCD_" in submit
+    assert "PYTHONNOUSERSITE=1" in submit
+    assert "requirements-shock-ridge-aware.txt" in submit
+    assert "matplotlib==3.10.8" in requirements
+    assert "numpy==1.26.4" in requirements

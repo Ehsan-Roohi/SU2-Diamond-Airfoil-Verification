@@ -47,7 +47,10 @@ vortex-detection validation result.
 ## Unity execution
 
 The submission script reads the existing final SU2 checkpoint and does not
-rerun SU2:
+rerun SU2.  It also disables Python's user-site packages and bootstraps a
+pinned CPU analysis stack only when the isolated import check fails.  This
+prevents an incomplete `~/.local` Matplotlib installation from shadowing the
+project environment:
 
 ```bash
 sbatch --export=ALL \
