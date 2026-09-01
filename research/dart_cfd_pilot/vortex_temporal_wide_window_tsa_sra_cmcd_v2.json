@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "method_name": "Wide-window Temporal Scale-Adaptive Shock-Ridge-Aware Coherent-Motion Core Detection v2 (TSA-SRA-CMCD-v2)",
+  "short_name": "TSA-SRA-CMCD-v2",
+  "development_role": "single temporal-window revision selected on the failed square-cylinder Re=100 prospective case",
+  "base_spatial_configuration": "vortex_scale_adaptive_sra_cmcd.json",
+  "minimum_spatial_physics_support": 2,
+  "minimum_winding_ring_support": 2,
+  "minimum_pressure_ring_support": 2,
+  "minimum_temporal_support": 2,
+  "lookaround_frames": 4,
+  "maximum_convection_speed_over_u_infinity": 1.30,
+  "maximum_upstream_backtracking_over_d": 0.35,
+  "minimum_wall_distance_over_d": 0.75,
+  "same_frame_suppression_radius_over_d": 0.35,
+  "eligible_spatial_rejection_reasons": [
+    "open_or_elongated_q_island",
+    "insufficient_multiradius_winding",
+    "pressure_minimum_not_corroborated"
+  ],
+  "recovered_candidates_may_support_other_recoveries": false,
+  "gamma2_used_by_detector": false,
+  "future_case_recalibration_allowed": false,
+  "threshold_provenance": {
+    "development_case": "d2q9_lbm_square_cylinder_re100_prospective_holdout",
+    "development_result": {
+      "precision": 0.958158996,
+      "recall": 0.848148148,
+      "rotation_sign_accuracy": 1.0
+    },
+    "only_changes_from_v1": {
+      "lookaround_frames": "2 to 4",
+      "maximum_convection_speed_over_u_infinity": "1.05 to 1.30",
+      "maximum_upstream_backtracking_over_d": "0.25 to 0.35"
+    },
+    "holdout_case": "d2q9_lbm_square_cylinder_re120_v2_holdout",
+    "holdout_results_seen_when_frozen": false,
+    "future_holdout_recalibration_allowed": false
+  }
+}

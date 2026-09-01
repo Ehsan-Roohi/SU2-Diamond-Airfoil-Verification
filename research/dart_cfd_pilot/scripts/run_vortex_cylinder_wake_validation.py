@@ -601,12 +601,16 @@ def main() -> int:
         validation_role == "independent_holdout"
         if validation_role else ("independent" in role and "holdout" in role)
     )
+    prospective_holdout = validation_role == "prospective_holdout"
     if independent_holdout:
         prefix = "independent_temporal_cylinder_wake_validation" if temporal_cfg else "independent_cylinder_wake_validation"
         if cfg.get("reference_protocol_amendment", {}).get(
             "applied_after_first_holdout_scoring", False
         ):
             prefix += "_after_declared_reference_quality_amendment"
+        claim_gate = f"{prefix}_{'pass' if scientific_pass else 'failed'}"
+    elif prospective_holdout:
+        prefix = "prospective_temporal_cylinder_wake_validation" if temporal_cfg else "prospective_cylinder_wake_validation"
         claim_gate = f"{prefix}_{'pass' if scientific_pass else 'failed'}"
     else:
         prefix = "temporal_cylinder_wake_development_gate" if temporal_cfg else "cylinder_wake_development_gate"
