@@ -256,8 +256,11 @@ The current physics-first detector revision is documented in
 [`SHOCK_RIDGE_AWARE_CMCD.md`](SHOCK_RIDGE_AWARE_CMCD.md).  It reuses the frozen
 AA-ACB-CMCD candidate generator and adds closed-Q-island, multiradius velocity
 winding, pressure-minimum, and thermodynamic shock-ridge vetoes.  The SU2
-Mach-3, alpha-40 SST-URANS checkpoint is a development negative control, not
-an independent validation case.  The runner differentiates on the native SU2
+Mach-3, alpha-40 SST-URANS checkpoint was initially treated as a development
+negative control, but the later native-grid audit invalidated that assumption:
+it contains at least one strong rotational-topology candidate near the trailing
+edge.  It remains an unlabelled development case, not an independent
+validation case.  The runner differentiates on the native SU2
 O-grid and produces physical field figures plus a per-candidate rejection
 audit.  No SU2 rerun is required:
 
@@ -287,10 +290,11 @@ VORTEX_ANALYTIC_PC_JOBID_COMPLETE.tar.gz
 The published TSA-SRA-CMCD-v2 detector can now be applied in one job to the
 existing 61-frame MFC ILES sequence and the two-state SU2 SST-URANS checkpoint.
 No detector threshold is recalibrated. MFC is scored against its pre-existing
-Stage-8 physics catalogue; SU2 remains the predeclared shock-rich negative
-control and retains raw Gamma2 components only as an artifact census. The SU2
-temporal gate fails closed because two snapshots cannot validate temporal
-recovery.
+Stage-8 physics catalogue. SU2 is now correctly treated as an unlabelled,
+shock-interacting failure audit: raw Gamma2 components are an artifact census,
+while strong closed-Q/multiring-winding candidates rejected by the frozen
+detector are reported separately as likely false negatives. The SU2 temporal
+gate fails closed because two snapshots cannot validate temporal recovery.
 
 ```bash
 sbatch --export=ALL \
@@ -300,7 +304,7 @@ sbatch --export=ALL \
 The direct-download archive is written at the repository root as
 `VORTEX_MFC_SU2_CROSS_SOLVER_JOBID_COMPLETE.tar.gz`. See
 [`MFC_SU2_CROSS_SOLVER_AUDIT.md`](MFC_SU2_CROSS_SOLVER_AUDIT.md) for the
-reference policy, local SU2 negative-control result, and publication boundary.
+reference policy, corrected SU2 failure result, and publication boundary.
 
 
 
