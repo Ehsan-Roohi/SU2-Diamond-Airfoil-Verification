@@ -145,15 +145,34 @@ fi
 
 "$PYTHON_BIN" -m py_compile "$ANALYZER" "$BUILD_SCRIPT" "$RENDER_SCRIPT" "$AGGREGATE_SCRIPT"
 PYTHONPATH="$MFC_ROOT/toolchain${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" - <<'PY'
-import importlib.util
+import os
 import shutil
+from pathlib import Path
+
 import matplotlib
 import numpy
 from mfc.viz.reader import assemble
 
-assert callable(assemble)
-assert shutil.which("ffmpeg") or importlib.util.find_spec("imageio_ffmpeg")
+if not callable(assemble):
+    raise RuntimeError("MFC reader import succeeded but assemble is not callable")
+
+ffmpeg = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg")
+if ffmpeg is None:
+    try:
+        import imageio_ffmpeg
+    except ImportError as exc:
+        raise SystemExit(
+            "ERROR: ffmpeg is unavailable. Load an ffmpeg module, install "
+            "imageio-ffmpeg for PYTHON_BIN, or set FFMPEG_BIN=/absolute/path/to/ffmpeg."
+        ) from exc
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+
+ffmpeg_path = Path(ffmpeg).expanduser()
+if not ffmpeg_path.is_file() or not os.access(ffmpeg_path, os.X_OK):
+    raise SystemExit(f"ERROR: ffmpeg executable is unavailable: {ffmpeg_path}")
+
 print("MFC_REYNOLDS_T31_PYTHON_PREFLIGHT=PASS")
+print(f"MFC_REYNOLDS_T31_FFMPEG={ffmpeg_path.resolve()}")
 PY
 
 mkdir -p "$ANALYSIS_PARENT"
