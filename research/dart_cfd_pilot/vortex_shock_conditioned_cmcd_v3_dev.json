@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "method_name": "TSA-SRA-CMCD-v3 shock-conditioned development rule",
+  "role": "development only; defined from the existing analytic shock-vortex sweep and retrospective SU2 failure diagnostic; forbidden for future holdout tuning",
+  "future_case_recalibration_allowed": false,
+  "near_shock": {
+    "minimum_winding_ring_support": 3,
+    "minimum_pressure_ring_support": 2,
+    "minimum_equivalent_q_radius_cells": 3.0,
+    "minimum_rotation_purity": 0.65,
+    "minimum_sign_coherence": 0.90,
+    "minimum_ring_coherence": 0.90,
+    "maximum_radial_to_tangential": 0.75,
+    "minimum_scale_persistence": 0.999,
+    "minimum_hessian_compactness": 0.10,
+    "maximum_q_island_aspect_ratio": 2.2
+  },
+  "development_gates": {
+    "minimum_recall_at_shock_offset_0p04": 1.0,
+    "minimum_recall_at_shock_offset_0p08": 1.0,
+    "maximum_planar_shock_false_positives": 0,
+    "maximum_shock_bead_false_positives": 0,
+    "maximum_pure_shear_false_positives": 0,
+    "maximum_pure_strain_false_positives": 0
+  }
+}
