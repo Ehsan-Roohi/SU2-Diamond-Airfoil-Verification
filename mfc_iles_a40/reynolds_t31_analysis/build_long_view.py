@@ -4,8 +4,9 @@
 The long HLL calculation is intentionally split across restart-gated stage
 directories.  MFC's visualisation reader expects one ``restart_data``
 directory, so this utility creates a directory of symbolic links without
-copying the large field files.  Duplicate boundary checkpoints are hashed and
-must be byte-identical before the view is accepted.
+copying the large field files.  Every source boundary and next-stage PASS
+marker is validated; retained duplicate checkpoints are hashed and must be
+byte-identical before the view is accepted.
 """
 
 from __future__ import annotations
