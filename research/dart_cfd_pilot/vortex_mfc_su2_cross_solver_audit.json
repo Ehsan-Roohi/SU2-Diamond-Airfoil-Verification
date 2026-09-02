@@ -30,6 +30,7 @@
     "case_id": "mfc_iles_mach3_alpha40_t000_t3000_retrospective",
     "evaluation_role": "retrospective_positive_sequence",
     "reference_catalogue_role": "pre-existing Stage-8 catalogue frozen before this cross-solver audit",
+    "allowed_empty_reference_frames": [0],
     "gamma": 1.4,
     "step_start": 0,
     "step_stop": 16200,
