@@ -22,9 +22,15 @@ value() {
 
 prepare_job=$(value prepare_job)
 analysis_job=$(value analysis_array_job)
+cv_job=$(value cv_dataset_job)
 visual_job=$(value visual_job)
 aggregate_job=$(value aggregate_job)
-jobs="$prepare_job,$analysis_job,$visual_job,$aggregate_job"
+job_values=("$prepare_job" "$analysis_job" "$cv_job" "$visual_job" "$aggregate_job")
+jobs=""
+for job in "${job_values[@]}"; do
+    [[ -n "$job" ]] || continue
+    jobs+="${jobs:+,}$job"
+done
 
 echo "ANALYSIS_ROOT=$ANALYSIS_ROOT"
 echo "JOBS=$jobs"
@@ -42,6 +48,7 @@ markers=(
     cases/re1e5_f180/ANALYSIS_OK.txt
     cases/re1e6_f270/ANALYSIS_OK.txt
     cases/re1e6_long_t31/ANALYSIS_OK.txt
+    ml_dataset/DATASET_OK.txt
     visuals/VISUALIZATION_OK.txt
     ANALYSIS_COMPLETE.txt
 )
@@ -68,6 +75,8 @@ if [[ -s "$ANALYSIS_ROOT/ANALYSIS_COMPLETE.txt" ]]; then
     echo "===== DELIVERABLES ====="
     ls -lh "$ANALYSIS_ROOT/MFC_REYNOLDS_T31_ANALYSIS_CORE.zip" \
         "$ANALYSIS_ROOT/visuals/"*.mp4
+    du -sh "$ANALYSIS_ROOT/ml_dataset"
+    sed -n '1,40p' "$ANALYSIS_ROOT/ml_dataset/DATASET_OK.txt"
     (
         cd "$ANALYSIS_ROOT"
         sha256sum -c "MFC_REYNOLDS_T31_ANALYSIS_CORE.zip.sha256.txt"

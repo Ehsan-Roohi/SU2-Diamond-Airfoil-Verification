@@ -603,18 +603,13 @@ def ib_history_is_usable(rows: list[dict[str, float | int]], expected_steps: lis
 
 def snapshot_rows(
     case_dir: Path,
-    mfc_root: Path,
     steps: list[int],
     dt: float,
     ref: FlowReference,
     direct_rows: list[dict[str, float | int]],
+    assemble_field: Any,
+    field_format: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    sys.path.insert(0, str(mfc_root / "toolchain"))
-    try:
-        from mfc.viz.reader import assemble
-    except ImportError as exc:
-        raise RuntimeError(f"Cannot import MFC field reader from {mfc_root}: {exc}") from exc
-
     direct_by_step = {int(row["step"]): row for row in direct_rows}
     force_rows: list[dict[str, Any]] = []
     shock_rows: list[dict[str, Any]] = []
@@ -625,7 +620,7 @@ def snapshot_rows(
 
     for index, step in enumerate(steps, start=1):
         print(f"FIELD {index}/{len(steps)} step={step}", flush=True)
-        assembled = assemble(str(case_dir), step, fmt="binary")
+        assembled = assemble_field(str(case_dir), step)
         required = {"rho", "pres", "vel1", "vel2"}
         missing = sorted(required - set(assembled.variables))
         if missing:
@@ -725,6 +720,7 @@ def snapshot_rows(
         gc.collect()
 
     validation: dict[str, Any] = {
+        "field_format": field_format,
         "native_finite_samples": len(validation_errors),
         "relative_vector_error_mean": (
             float(np.mean(validation_errors)) if validation_errors else None
@@ -1072,18 +1068,57 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     sys.path.insert(0, str(mfc_root / "toolchain"))
-    from mfc.viz.reader import discover_timesteps
+    from mfc.viz.reader import assemble, discover_timesteps
 
-    steps = [int(step) for step in discover_timesteps(str(case_dir), "binary")]
+    binary_steps = [int(step) for step in discover_timesteps(str(case_dir), "binary")]
+    workflow_dir = Path(__file__).resolve().parents[1] / "reynolds_t31_analysis"
+    sys.path.insert(0, str(workflow_dir))
+    try:
+        from raw_restart_reader import assemble_raw, discover_raw_steps
+    except ImportError as exc:
+        raise RuntimeError(f"Cannot import raw MFC restart reader from {workflow_dir}: {exc}") from exc
+
+    raw_steps = discover_raw_steps(case_dir)
+    requested_format = getattr(args, "field_format", "auto")
+    prefer_binary = requested_format == "binary" or (
+        requested_format == "auto"
+        and len(binary_steps) > len(raw_steps)
+    )
+    if prefer_binary and binary_steps:
+        field_format = "binary_post_process"
+        steps = binary_steps
+        assemble_field = lambda directory, step: assemble(directory, step, fmt="binary")
+    elif requested_format in {"auto", "raw"} and raw_steps:
+        field_format = "raw_restart_mpiio"
+        steps = raw_steps
+        # Only the near-body/shock region is required for force and shock
+        # diagnostics. Cropping here avoids allocating the full 8-million-cell
+        # f270 domain for every saved state.
+        assemble_field = lambda directory, step: assemble_raw(
+            directory, step, crop=(-1.5, 2.0, -1.5, 2.0), halo=6
+        )
+    else:
+        steps = []
+        field_format = "NONE"
+        assemble_field = None
     if len(steps) < 4:
-        raise RuntimeError(f"Only {len(steps)} binary field snapshots were found")
+        raise RuntimeError(
+            f"Only {len(steps)} usable field snapshots were found "
+            f"(binary={len(binary_steps)}, raw_restart={len(raw_steps)})"
+        )
     times = np.asarray(steps, dtype=float) * args.dt
     if args.analysis_start >= times[-1]:
         raise RuntimeError("--analysis-start must precede the final saved time")
     direct_rows = read_ib_state_history(case_dir, ref)
     direct_usable = ib_history_is_usable(direct_rows, steps)
     force_rows, shock_rows, field_info = snapshot_rows(
-        case_dir, mfc_root, steps, args.dt, ref, direct_rows
+        case_dir,
+        steps,
+        args.dt,
+        ref,
+        direct_rows,
+        assemble_field,
+        field_format,
     )
     if direct_usable:
         direct_by_step = {int(row["step"]): row for row in direct_rows}
@@ -1231,6 +1266,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "Mach_inf": ref.u_inf,
         "Re_c": ref.reynolds,
         "dt": args.dt,
+        "field_format": field_format,
         "saved_steps": steps,
         "statistical_window": [args.analysis_start, float(times[-1])],
         "force_source": force_source,
@@ -1354,6 +1390,12 @@ def main() -> int:
     parser.add_argument("--u-inf", type=float, default=3.0)
     parser.add_argument("--chord", type=float, default=1.0)
     parser.add_argument("--reynolds", type=float, default=1.0e6)
+    parser.add_argument(
+        "--field-format",
+        choices=("auto", "binary", "raw"),
+        default="auto",
+        help="read post-processed binary fields or raw restart_data/lustre files",
+    )
     parser.add_argument("--su2-history", type=Path)
     parser.add_argument("--su2-config", type=Path)
     parser.add_argument("--nektar-summary", type=Path)

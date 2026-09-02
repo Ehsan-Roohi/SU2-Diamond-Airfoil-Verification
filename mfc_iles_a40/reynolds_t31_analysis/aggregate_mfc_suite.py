@@ -227,8 +227,18 @@ def plot_force_components(output: Path, summaries: list[dict[str, Any]]) -> None
     labels = [f"{row['display']}\n{row['grid']}" for row in selected]
     fig, axes = plt.subplots(2, 1, figsize=(12.0, 8.5), sharex=True, constrained_layout=True)
     for ax, coefficient in zip(axes, ("CL", "CD")):
-        pressure = np.asarray([float(row[f"{coefficient}_pressure_mean"]) for row in selected])
-        viscous = np.asarray([float(row[f"{coefficient}_viscous_mean"]) for row in selected])
+        pressure = np.asarray([
+            float(row[f"{coefficient}_pressure_mean"])
+            if row.get(f"{coefficient}_pressure_mean") is not None
+            else math.nan
+            for row in selected
+        ])
+        viscous = np.asarray([
+            float(row[f"{coefficient}_viscous_mean"])
+            if row.get(f"{coefficient}_viscous_mean") is not None
+            else math.nan
+            for row in selected
+        ])
         total = np.asarray([float(row[f"{coefficient}_mean"]) for row in selected])
         ax.bar(positions - 0.18, pressure, width=0.36, color="#457b9d", label="pressure")
         ax.bar(positions + 0.18, viscous, width=0.36, color="#e76f51", label="viscous")
@@ -274,22 +284,37 @@ def long_window_analysis(rows: list[dict[str, str]]) -> tuple[list[dict[str, Any
         raise RuntimeError("long force history must contain at least 32 finite samples")
     order = np.argsort(time)
     time, cl, cd = time[order], cl[order], cd[order]
-    spacing = float(np.median(np.diff(time)))
-    if spacing <= 0.0 or not np.allclose(np.diff(time), spacing, rtol=1.0e-5, atol=1.0e-10):
-        raise RuntimeError("long force history has a nonuniform or duplicated time base")
+    if np.any(np.diff(time) <= 0.0):
+        raise RuntimeError("long force history has a duplicated or reversed time base")
     windows: list[dict[str, Any]] = []
     for start in (6.0, 11.0, 16.0, 21.0, 26.0):
         end = start + 5.0
         upper = time <= end + 1.0e-10 if math.isclose(end, 31.0) else time < end - 1.0e-10
         mask = (time >= start - 1.0e-10) & upper
-        if np.sum(mask) < 16:
+        sample_count = int(np.sum(mask))
+        minimum = 8 if math.isclose(start, 21.0) else 16
+        if sample_count < minimum:
             raise RuntimeError(f"too few long-run samples in window {start:g}..{end:g}")
-        spec = spectrum(time[mask], cl[mask])
+        if math.isclose(start, 21.0):
+            spec: dict[str, Any] = {
+                "status": "SPARSE_RETENTION_NO_SPECTRAL_CLAIM",
+                "samples": sample_count,
+                "frequency": None,
+                "Strouhal": None,
+                "cycles": None,
+            }
+        else:
+            spec = spectrum(time[mask], cl[mask])
         windows.append(
             {
                 "window_start": start,
                 "window_end": end,
-                "samples": int(np.sum(mask)),
+                "samples": sample_count,
+                "sampling": (
+                    "SPARSE_RETAINED_NO_INTERPOLATION"
+                    if math.isclose(start, 21.0)
+                    else "DENSE_RETAINED_OR_VALIDATED_DERIVED"
+                ),
                 "CL_mean": float(np.nanmean(cl[mask])),
                 "CL_rms": float(np.nanstd(cl[mask])),
                 "CD_mean": float(np.nanmean(cd[mask])),
@@ -303,12 +328,24 @@ def long_window_analysis(rows: list[dict[str, str]]) -> tuple[list[dict[str, Any
     continuity: list[dict[str, Any]] = []
     for boundary in (6.0, 11.0, 16.0, 21.0, 26.0):
         boundary_index = int(np.argmin(np.abs(time - boundary)))
-        if not math.isclose(time[boundary_index], boundary, abs_tol=spacing / 10.0):
-            raise RuntimeError(f"restart boundary t={boundary:g} is absent from force history")
+        if not math.isclose(time[boundary_index], boundary, abs_tol=1.0e-8):
+            continuity.append(
+                {
+                    "boundary_time": boundary,
+                    "status": "BOUNDARY_SAMPLE_NOT_RETAINED",
+                }
+            )
+            continue
         before_index = boundary_index - 1
         after_index = boundary_index + 1
         if before_index < 0 or after_index >= len(time):
-            raise RuntimeError(f"restart boundary t={boundary:g} lacks neighboring force samples")
+            continuity.append(
+                {
+                    "boundary_time": boundary,
+                    "status": "NOT_EVALUABLE_AT_RETAINED_HISTORY_EDGE",
+                }
+            )
+            continue
         local = (time >= boundary - 0.5) & (time <= boundary + 0.5)
         local_cl_diff = np.abs(np.diff(cl[local]))
         local_cd_diff = np.abs(np.diff(cd[local]))
@@ -319,6 +356,9 @@ def long_window_analysis(rows: list[dict[str, str]]) -> tuple[list[dict[str, Any
         continuity.append(
             {
                 "boundary_time": boundary,
+                "status": "EVALUATED_NEAREST_RETAINED_NEIGHBORS",
+                "time_before": float(time[before_index]),
+                "time_after": float(time[after_index]),
                 "CL_two_sample_jump": float(cl[after_index] - cl[before_index]),
                 "CD_two_sample_jump": float(cd[after_index] - cd[before_index]),
                 "CL_increment_before": cl_before,
@@ -449,6 +489,26 @@ def core_files(root: Path, summary_dir: Path, visuals_dir: Path) -> Iterable[Pat
         for path in directory.rglob("*"):
             if path.is_file() and path.suffix.lower() != ".mp4" and "matplotlib-cache" not in path.parts:
                 yield path
+    ml_dir = root / "ml_dataset"
+    for name in (
+        "DATASET_OK.txt",
+        "DATASET_CARD.md",
+        "dataset_report.json",
+        "normalization.json",
+        "dataset_balance.csv",
+        "manifest.jsonl",
+        "splits.csv",
+        "vortex_catalogue.csv",
+        "shock_catalogue.csv",
+        "cv_dataset_loader.py",
+        "export.log",
+    ):
+        path = ml_dir / name
+        if path.is_file():
+            yield path
+    for path in (ml_dir / "catalogues").glob("*_stage8_catalogue.csv"):
+        if path.is_file():
+            yield path
     for path in root.glob("*.out"):
         yield path
     for path in root.glob("*.err"):
@@ -513,6 +573,12 @@ def main() -> int:
         grid_status = "GRID_SENSITIVE"
 
     field_payload = json.loads((visuals_dir / "mfc_reynolds_field_metrics.json").read_text(encoding="utf-8"))
+    ml_report_path = root / "ml_dataset" / "dataset_report.json"
+    if not ml_report_path.is_file():
+        raise RuntimeError("computer-vision dataset report is missing")
+    ml_report = json.loads(ml_report_path.read_text(encoding="utf-8"))
+    if ml_report.get("status") != "PASS" or int(ml_report.get("frames", 0)) < 300:
+        raise RuntimeError("computer-vision dataset did not pass its output gates")
     plot_summary_metrics(summary_dir, summaries, field_payload)
     neighbor_changes = neighboring_reynolds_changes(summaries, field_payload)
     write_csv(summary_dir / "reynolds_neighbor_relative_changes.csv", neighbor_changes)
@@ -526,22 +592,33 @@ def main() -> int:
     long_manifest = json.loads((root / "long_view" / "long_view_manifest.json").read_text(encoding="utf-8"))
     boundary_rows = long_manifest.get("boundary_identity", [])
     boundary_audit_status = long_manifest.get("boundary_audit_status", "FAIL")
+    accepted_boundary_statuses = {
+        "BYTE_IDENTICAL_RAW",
+        "SINGLE_RETAINED_RAW_PLUS_MARKER",
+        "DERIVED_HISTORY_PLUS_MARKER",
+    }
     boundary_audit_pass = (
         len(boundary_rows) == 5
-        and boundary_audit_status in {"BYTE_IDENTICAL", "PASS_WITH_RESTART_PROVENANCE"}
+        and boundary_audit_status == "PASS_HYBRID_RETAINED_AND_DERIVED"
         and all(
             row.get("right_restart_marker_valid") is True
-            and row.get("audit_status")
-            in {"BYTE_IDENTICAL", "PASS_WITH_RESTART_PROVENANCE"}
+            and row.get("audit_status") in accepted_boundary_statuses
             for row in boundary_rows
         )
     )
     if not boundary_audit_pass:
         raise RuntimeError("long-view restart-boundary audit is incomplete or invalid")
     exact_boundary_count = sum(
-        row.get("audit_status") == "BYTE_IDENTICAL" for row in boundary_rows
+        row.get("audit_status") == "BYTE_IDENTICAL_RAW" for row in boundary_rows
     )
-    provenance_boundary_count = len(boundary_rows) - exact_boundary_count
+    single_raw_boundary_count = sum(
+        row.get("audit_status") == "SINGLE_RETAINED_RAW_PLUS_MARKER"
+        for row in boundary_rows
+    )
+    derived_boundary_count = sum(
+        row.get("audit_status") == "DERIVED_HISTORY_PLUS_MARKER"
+        for row in boundary_rows
+    )
     force_sources = sorted({str(row.get("force_source")) for row in summaries})
     report = {
         "status": "PIPELINE_PASS",
@@ -549,6 +626,18 @@ def main() -> int:
         "scope": "screening diagnostics; intermediate-Re f180 cases are not grid-convergence claims",
         "cases": summaries,
         "field_metrics": field_payload,
+        "computer_vision_dataset": {
+            "path": str((root / "ml_dataset").resolve()),
+            "schema_version": ml_report.get("schema_version"),
+            "frames": ml_report.get("frames"),
+            "shape_hw": ml_report.get("shape_hw"),
+            "field_names": ml_report.get("field_names"),
+            "split_counts": ml_report.get("split_counts"),
+            "vortex_catalogue_rows": ml_report.get("vortex_catalogue_rows"),
+            "shock_pass_frames": ml_report.get("shock_pass_frames"),
+            "normalization": ml_report.get("normalization"),
+            "label_qualification": ml_report.get("label_qualification"),
+        },
         "neighboring_reynolds_relative_changes": neighbor_changes,
         "re1e4_f180_f270_relative_differences": grid_metrics,
         "re1e4_grid_screen_status": grid_status,
@@ -557,9 +646,12 @@ def main() -> int:
         "hll_restart_continuity": continuity,
         "hll_restart_boundary_audit_status": boundary_audit_status,
         "hll_restart_boundary_exact_count": exact_boundary_count,
-        "hll_restart_boundary_provenance_count": provenance_boundary_count,
+        "hll_restart_boundary_single_raw_count": single_raw_boundary_count,
+        "hll_restart_boundary_derived_count": derived_boundary_count,
         "hll_restart_boundary_hash_status": (
-            "PASS" if boundary_audit_status == "BYTE_IDENTICAL" else "NOT_AVAILABLE"
+            "PARTIAL_PASS_WHERE_BOTH_RAW_COPIES_RETAINED"
+            if exact_boundary_count
+            else "NOT_AVAILABLE"
         ),
         "force_sources": force_sources,
         "interpretation_rules": {
@@ -600,10 +692,13 @@ def main() -> int:
             f"- Re=1e4 f180/f270 screen: `{grid_status}`.",
             f"- Restart-boundary audit through t=31: `{boundary_audit_status}` "
             f"({exact_boundary_count} byte-identical; "
-            f"{provenance_boundary_count} source-plus-marker).",
+            f"{single_raw_boundary_count} single-retained-raw; "
+            f"{derived_boundary_count} derived-history-plus-marker).",
             f"- Force sources present: `{', '.join(force_sources)}`.",
             "- Short t=3..6 spectra are screening values unless their JSON status resolves at least five cycles.",
             "- The t=31 window table tests drift over five consecutive five-time-unit intervals.",
+            f"- ML dataset: `{ml_report.get('frames')}` unique frames, schema "
+            f"`{ml_report.get('schema_version')}`; labels are physics-derived weak labels.",
             "- Final physical interpretation must use the plots and numerical tables together.",
         ]
     )
@@ -623,12 +718,15 @@ def main() -> int:
     archive_sha = sha256(archive)
     (root / f"{archive.name}.sha256.txt").write_text(f"{archive_sha}  {archive.name}\n", encoding="utf-8")
     (root / "ANALYSIS_COMPLETE.txt").write_text(
-        f"status=PASS\ncore_archive={archive}\nmovies={len(movie_list)}\n", encoding="utf-8"
+        f"status=PASS\ncore_archive={archive}\nmovies={len(movie_list)}\n"
+        f"ml_dataset={root / 'ml_dataset'}\nml_frames={ml_report.get('frames')}\n",
+        encoding="utf-8",
     )
     print("MFC_REYNOLDS_T31_AGGREGATE=PASS")
     print(f"UPLOAD_CORE={archive}")
     for movie in movie_list:
         print(f"UPLOAD_MOVIE={movie}")
+    print(f"TRAINING_DATASET={root / 'ml_dataset'}")
     return 0
 
 

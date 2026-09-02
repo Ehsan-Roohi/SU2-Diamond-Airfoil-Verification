@@ -17,16 +17,26 @@ ANALYSIS_MEMORY=${ANALYSIS_MEMORY:-48G}
 ANALYSIS_WALLTIME=${ANALYSIS_WALLTIME:-12:00:00}
 VISUAL_MEMORY=${VISUAL_MEMORY:-48G}
 VISUAL_WALLTIME=${VISUAL_WALLTIME:-12:00:00}
+CV_MEMORY=${CV_MEMORY:-48G}
+CV_WALLTIME=${CV_WALLTIME:-12:00:00}
 AGGREGATE_MEMORY=${AGGREGATE_MEMORY:-16G}
 AGGREGATE_WALLTIME=${AGGREGATE_WALLTIME:-02:00:00}
 
 BASE=$REPO_ROOT/mfc_iles_a40/reynolds_t31_analysis
 ANALYZER=$REPO_ROOT/mfc_iles_a40/hll_production_analysis/analyze_mfc_hll_article.py
 BUILD_SCRIPT=$BASE/build_long_view.py
+RAW_RESTART_READER=$BASE/raw_restart_reader.py
+CASE_EVIDENCE_SCRIPT=$BASE/case_evidence.py
+PRUNED_ANALYZER=$BASE/analyze_pruned_initial.py
+LONG_ANALYZER=$BASE/analyze_long_chain.py
 RENDER_SCRIPT=$BASE/render_mfc_suite.py
+CV_EXPORT_SCRIPT=$BASE/export_cv_dataset.py
+CV_LABEL_SCRIPT=$BASE/cv_physics_labels.py
+CV_LOADER=$BASE/cv_dataset_loader.py
 AGGREGATE_SCRIPT=$BASE/aggregate_mfc_suite.py
 PREP_RUNNER=$BASE/run_prepare_long_view.sbatch
 ANALYSIS_RUNNER=$BASE/run_case_analysis.sbatch
+CV_RUNNER=$BASE/run_cv_dataset.sbatch
 VISUAL_RUNNER=$BASE/run_visuals.sbatch
 AGGREGATE_RUNNER=$BASE/run_aggregate.sbatch
 
@@ -121,6 +131,12 @@ require_checkpoint() {
         echo "ERROR: missing or wrong-size IB state $ib" >&2
         exit 3
     }
+    if [[ -f "$directory/final-checkpoint.sha256.txt" ]]; then
+        (cd "$directory" && sha256sum -c final-checkpoint.sha256.txt >/dev/null) || {
+            echo "ERROR: final checkpoint checksum failed under $directory" >&2
+            exit 3
+        }
+    fi
 }
 
 require_checkpoint "$RE1E4_ROOT/f180" 21600 142560000 RUN_OK_HIGH_VISCOSITY.txt
@@ -130,11 +146,48 @@ require_checkpoint "$LADDER_ROOT/re1e5" 21600 142560000 RUN_OK_VISCOSITY_LADDER.
 require_checkpoint "$RE1E6_INITIAL" 32400 320760000 RUN_OK_INITIAL.txt
 require_checkpoint "$LONG_CHAIN/t26_t31" 167400 320760000 RUN_OK_RESTART.txt
 
+require_series() {
+    local directory=$1
+    local expected_count=$2
+    local bytes=$3
+    local first_step=$4
+    local last_step=$5
+    local stride=$6
+    local count
+    local step field
+    [[ $(((last_step - first_step) / stride + 1)) -eq "$expected_count" ]] || {
+        echo "ERROR: internal expected-series definition is inconsistent for $directory." >&2
+        exit 3
+    }
+    for ((step=first_step; step<=last_step; step+=stride)); do
+        field="$directory/restart_data/lustre_${step}.dat"
+        [[ -f "$field" && "$(stat -c %s "$field")" -eq "$bytes" ]] || {
+            echo "ERROR: expected raw training frame is missing or truncated: $field" >&2
+            exit 3
+        }
+    done
+    count=$(find "$directory/restart_data" -maxdepth 1 -type f \
+        -name 'lustre_[0-9]*.dat' -size "${bytes}c" -printf '.' | wc -c)
+    [[ "$count" -eq "$expected_count" ]] || {
+        echo "ERROR: $directory has $count complete raw fields; expected $expected_count." >&2
+        exit 3
+    }
+}
+
+# These four unpruned screening sequences are the training/analysis source.
+require_series "$RE1E4_ROOT/f180" 121 142560000 0 21600 180
+require_series "$RE1E4_ROOT/f270" 121 320760000 0 32400 270
+require_series "$LADDER_ROOT/re5e4" 61 142560000 0 21600 360
+require_series "$LADDER_ROOT/re1e5" 61 142560000 0 21600 360
+
 [[ "$ARRAY_LIMIT" =~ ^[1-6]$ ]] || { echo "ERROR: ARRAY_LIMIT must be an integer from 1 to 6." >&2; exit 2; }
 [[ -x "$PYTHON_BIN" ]] || { echo "ERROR: PYTHON_BIN is not executable: $PYTHON_BIN" >&2; exit 2; }
 [[ -f "$MFC_ROOT/toolchain/mfc/viz/reader.py" ]] || { echo "ERROR: pinned MFC reader is missing." >&2; exit 2; }
-for script in "$ANALYZER" "$BUILD_SCRIPT" "$RENDER_SCRIPT" "$AGGREGATE_SCRIPT" \
-              "$PREP_RUNNER" "$ANALYSIS_RUNNER" "$VISUAL_RUNNER" "$AGGREGATE_RUNNER"; do
+for script in "$ANALYZER" "$BUILD_SCRIPT" "$RAW_RESTART_READER" "$CASE_EVIDENCE_SCRIPT" \
+              "$PRUNED_ANALYZER" "$LONG_ANALYZER" "$RENDER_SCRIPT" "$CV_EXPORT_SCRIPT" \
+              "$CV_LABEL_SCRIPT" "$CV_LOADER" "$AGGREGATE_SCRIPT" \
+              "$PREP_RUNNER" "$ANALYSIS_RUNNER" "$CV_RUNNER" "$VISUAL_RUNNER" \
+              "$AGGREGATE_RUNNER"; do
     [[ -f "$script" ]] || { echo "ERROR: workflow file is missing: $script" >&2; exit 2; }
 done
 
@@ -143,7 +196,9 @@ if squeue -h -u "$SLURM_USER" -o '%j' 2>/dev/null | grep -Eq '^mfc-r31-'; then
     exit 4
 fi
 
-"$PYTHON_BIN" -m py_compile "$ANALYZER" "$BUILD_SCRIPT" "$RENDER_SCRIPT" "$AGGREGATE_SCRIPT"
+"$PYTHON_BIN" -m py_compile "$ANALYZER" "$BUILD_SCRIPT" "$RAW_RESTART_READER" \
+    "$CASE_EVIDENCE_SCRIPT" "$PRUNED_ANALYZER" "$LONG_ANALYZER" "$RENDER_SCRIPT" \
+    "$CV_EXPORT_SCRIPT" "$CV_LABEL_SCRIPT" "$CV_LOADER" "$AGGREGATE_SCRIPT"
 PYTHONPATH="$MFC_ROOT/toolchain${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" - <<'PY'
 import os
 import shutil
@@ -151,6 +206,7 @@ from pathlib import Path
 
 import matplotlib
 import numpy
+from PIL import Image
 from mfc.viz.reader import assemble
 
 if not callable(assemble):
@@ -175,17 +231,32 @@ print("MFC_REYNOLDS_T31_PYTHON_PREFLIGHT=PASS")
 print(f"MFC_REYNOLDS_T31_FFMPEG={ffmpeg_path.resolve()}")
 PY
 
+# Validate retained-history contracts before creating any Slurm jobs.
+"$PYTHON_BIN" "$BUILD_SCRIPT" --initial "$RE1E6_INITIAL" --chain "$LONG_CHAIN" \
+    --output /dev/null --start-time 0 --end-time 31 --check-only
+"$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$RE1E4_ROOT/f180" \
+    --dt 0.0002777777777777778 --analysis-start 3 --check-only
+"$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$RE1E4_ROOT/f270" \
+    --dt 0.0001851851851851852 --analysis-start 3 --check-only
+"$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$LADDER_ROOT/re5e4" \
+    --dt 0.0002777777777777778 --analysis-start 3 --check-only
+"$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$LADDER_ROOT/re1e5" \
+    --dt 0.0002777777777777778 --analysis-start 3 --check-only
+"$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$RE1E6_INITIAL" \
+    --dt 0.0001851851851851852 --analysis-start 3 --check-only
+
 mkdir -p "$ANALYSIS_PARENT"
 available=$(df -PB1 "$ANALYSIS_PARENT" | awk 'NR==2 {print $4}')
-if [[ "$available" =~ ^[0-9]+$ ]] && ((available < 5000000000)); then
-    echo "ERROR: less than 5 GB free for analysis products." >&2
+if [[ "$available" =~ ^[0-9]+$ ]] && ((available < 12000000000)); then
+    echo "ERROR: less than 12 GB free for analysis, movies, and ML tensors." >&2
     exit 5
 fi
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 ANALYSIS_ROOT=${ANALYSIS_ROOT:-$ANALYSIS_PARENT/mfc_a40_reynolds_t31_$STAMP}
 [[ ! -e "$ANALYSIS_ROOT" ]] || { echo "ERROR: ANALYSIS_ROOT already exists: $ANALYSIS_ROOT" >&2; exit 5; }
-mkdir -p "$ANALYSIS_ROOT/cases" "$ANALYSIS_ROOT/visuals" "$ANALYSIS_ROOT/summary"
+mkdir -p "$ANALYSIS_ROOT/cases" "$ANALYSIS_ROOT/visuals" \
+    "$ANALYSIS_ROOT/ml_dataset" "$ANALYSIS_ROOT/summary"
 CASE_TABLE=$ANALYSIS_ROOT/case_table.tsv
 
 {
@@ -225,12 +296,20 @@ ANALYSIS_JOB=$(sbatch --parsable --nice=5000 --mem="$ANALYSIS_MEMORY" --time="$A
     --constraint="$CONSTRAINT" --job-name=mfc-r31-case --chdir="$ANALYSIS_ROOT" \
     --array="0-5%$ARRAY_LIMIT" --dependency="afterok:$PREP_JOB" \
     --output="$ANALYSIS_ROOT/slurm-analysis-%A_%a.out" --error="$ANALYSIS_ROOT/slurm-analysis-%A_%a.err" \
-    --export="$common_export,ANALYZER=$ANALYZER" "$ANALYSIS_RUNNER")
+    --export="$common_export,ANALYZER=$ANALYZER,CASE_EVIDENCE_SCRIPT=$CASE_EVIDENCE_SCRIPT,PRUNED_ANALYZER=$PRUNED_ANALYZER,LONG_ANALYZER=$LONG_ANALYZER" \
+    "$ANALYSIS_RUNNER")
 ANALYSIS_JOB=${ANALYSIS_JOB%%;*}
+
+CV_JOB=$(sbatch --parsable --nice=5000 --mem="$CV_MEMORY" --time="$CV_WALLTIME" \
+    --constraint="$CONSTRAINT" --job-name=mfc-r31-ml --chdir="$ANALYSIS_ROOT" \
+    --dependency="afterok:$ANALYSIS_JOB" \
+    --output="$ANALYSIS_ROOT/slurm-ml-%j.out" --error="$ANALYSIS_ROOT/slurm-ml-%j.err" \
+    --export="$common_export,CV_EXPORT_SCRIPT=$CV_EXPORT_SCRIPT" "$CV_RUNNER")
+CV_JOB=${CV_JOB%%;*}
 
 VISUAL_JOB=$(sbatch --parsable --nice=5000 --mem="$VISUAL_MEMORY" --time="$VISUAL_WALLTIME" \
     --constraint="$CONSTRAINT" --job-name=mfc-r31-visual --chdir="$ANALYSIS_ROOT" \
-    --dependency="afterok:$ANALYSIS_JOB" \
+    --dependency="afterok:$CV_JOB" \
     --output="$ANALYSIS_ROOT/slurm-visual-%j.out" --error="$ANALYSIS_ROOT/slurm-visual-%j.err" \
     --export="$common_export,RENDER_SCRIPT=$RENDER_SCRIPT" "$VISUAL_RUNNER")
 VISUAL_JOB=${VISUAL_JOB%%;*}
@@ -249,6 +328,7 @@ AGGREGATE_JOB=${AGGREGATE_JOB%%;*}
     printf 'analysis_root=%s\n' "$ANALYSIS_ROOT"
     printf 'prepare_job=%s\n' "$PREP_JOB"
     printf 'analysis_array_job=%s\n' "$ANALYSIS_JOB"
+    printf 'cv_dataset_job=%s\n' "$CV_JOB"
     printf 'visual_job=%s\n' "$VISUAL_JOB"
     printf 'aggregate_job=%s\n' "$AGGREGATE_JOB"
 } >"$ANALYSIS_ROOT/SUBMISSION.env"
@@ -258,7 +338,8 @@ echo "MFC_REYNOLDS_T31_SUBMITTED=PASS"
 echo "ANALYSIS_ROOT=$ANALYSIS_ROOT"
 echo "PREP_JOB=$PREP_JOB"
 echo "ANALYSIS_ARRAY_JOB=$ANALYSIS_JOB"
+echo "CV_DATASET_JOB=$CV_JOB"
 echo "VISUAL_JOB=$VISUAL_JOB"
 echo "AGGREGATE_JOB=$AGGREGATE_JOB"
-echo "WATCH=squeue -j $PREP_JOB,$ANALYSIS_JOB,$VISUAL_JOB,$AGGREGATE_JOB"
+echo "WATCH=squeue -j $PREP_JOB,$ANALYSIS_JOB,$CV_JOB,$VISUAL_JOB,$AGGREGATE_JOB"
 echo "FINAL=$ANALYSIS_ROOT/ANALYSIS_COMPLETE.txt"

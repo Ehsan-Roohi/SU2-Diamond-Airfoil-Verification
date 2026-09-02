@@ -9,6 +9,9 @@ set -Eeuo pipefail
 : "${CASE_TABLE:?}"
 : "${PYTHON_BIN:?}"
 : "${ANALYZER:?}"
+: "${CASE_EVIDENCE_SCRIPT:?}"
+: "${PRUNED_ANALYZER:?}"
+: "${LONG_ANALYZER:?}"
 : "${MFC_ROOT:?}"
 : "${SLURM_ARRAY_TASK_ID:?}"
 
@@ -29,17 +32,32 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
 export OPENBLAS_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
 export MPLCONFIGDIR="$ANALYSIS_ROOT/matplotlib-cache/$label"
 
-"$PYTHON_BIN" "$ANALYZER" "$case_dir" \
-    --mfc-root "$MFC_ROOT" \
-    --output-dir "$output" \
-    --dt "$dt" \
-    --analysis-start "$analysis_start" \
-    --alpha 40 \
-    --rho-inf 1 \
-    --u-inf 3 \
-    --chord 1 \
-    --reynolds "$reynolds" \
-    2>&1 | tee "$output/analyze.log"
+if [[ "$role" == long_baseline ]]; then
+    "$PYTHON_BIN" "$LONG_ANALYZER" "$case_dir" \
+        --mfc-root "$MFC_ROOT" \
+        --output-dir "$output" \
+        --dt "$dt" \
+        --analysis-start "$analysis_start" \
+        --alpha 40 \
+        --rho-inf 1 \
+        --u-inf 3 \
+        --chord 1 \
+        --reynolds "$reynolds" \
+        2>&1 | tee "$output/analyze.log"
+else
+    "$PYTHON_BIN" "$CASE_EVIDENCE_SCRIPT" "$case_dir" \
+        --dt "$dt" \
+        --analysis-start "$analysis_start" \
+        --analyzer "$ANALYZER" \
+        --pruned-analyzer "$PRUNED_ANALYZER" \
+        --mfc-root "$MFC_ROOT" \
+        --output-dir "$output" \
+        --alpha 40 \
+        --rho-inf 1 \
+        --u-inf 3 \
+        --chord 1 \
+        --reynolds "$reynolds"
+fi
 
 test -s "$output/mfc_hll_article_metrics.json"
 test -s "$output/mfc_hll_force_history.csv"

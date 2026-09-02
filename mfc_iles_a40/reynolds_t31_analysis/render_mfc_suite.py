@@ -9,8 +9,8 @@ import hashlib
 import json
 import math
 import os
-import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -103,23 +103,35 @@ def read_cases(path: Path) -> list[CaseInfo]:
     if missing:
         raise RuntimeError(f"case table lacks required labels: {missing}")
     for row in rows:
-        if not (row.case_dir / "restart_data").is_dir():
-            raise RuntimeError(f"missing restart_data for {row.label}: {row.case_dir}")
+        if not (row.case_dir / "restart_data").is_dir() and not (
+            row.case_dir / "binary"
+        ).is_dir():
+            raise RuntimeError(f"missing MFC field data for {row.label}: {row.case_dir}")
     return rows
 
 
-def step_from_name(path: Path) -> int:
-    match = re.fullmatch(r"lustre_(\d+)\.dat", path.name)
-    if match is None:
-        raise ValueError(path)
-    return int(match.group(1))
+def binary_steps(case_dir: Path) -> set[int]:
+    for directory in (case_dir / "binary" / "root", case_dir / "binary" / "p0"):
+        if not directory.is_dir():
+            continue
+        steps = {
+            int(path.stem)
+            for path in directory.glob("[0-9]*.dat")
+            if path.stem.isdigit() and path.is_file() and path.stat().st_size > 0
+        }
+        if steps:
+            return steps
+    return set()
 
 
-def available_steps(case: CaseInfo) -> set[int]:
-    return {
-        step_from_name(path)
-        for path in (case.case_dir / "restart_data").glob("lustre_[0-9]*.dat")
-    }
+def available_steps(case: CaseInfo, discover_raw_steps: Any) -> tuple[str, set[int]]:
+    binary = binary_steps(case.case_dir)
+    raw = set(discover_raw_steps(case.case_dir))
+    if len(raw) >= len(binary) and raw:
+        return "raw_restart_mpiio", raw
+    if binary:
+        return "binary_post_process", binary
+    return "NONE", set()
 
 
 def as_xy(values: np.ndarray, nx: int, ny: int, name: str) -> np.ndarray:
@@ -139,11 +151,69 @@ def body_mask(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return (xx >= 0.0) & (xx <= 1.0) & (np.abs(yy) <= half_height)
 
 
-def load_fields(case: CaseInfo, step: int, assemble: Any) -> dict[str, Any]:
-    source = case.case_dir / "restart_data" / f"lustre_{step}.dat"
-    if not source.is_file() or source.stat().st_size == 0:
-        raise RuntimeError(f"missing field for {case.label} at step {step}: {source}")
-    assembled = assemble(str(case.case_dir), int(step), fmt="binary")
+def load_fields(
+    case: CaseInfo,
+    step: int,
+    assemble: Any,
+    assemble_raw: Any,
+    discover_raw_steps: Any,
+    ml_dataset: Path | None = None,
+) -> dict[str, Any]:
+    if ml_dataset is not None:
+        tensor = ml_dataset / "tensors" / f"{case.label}_s{int(step):09d}.npz"
+        if tensor.is_file():
+            with np.load(tensor, allow_pickle=False) as source_data:
+                names = [str(value) for value in source_data["field_names"]]
+                values = np.asarray(source_data["fields"], dtype=np.float32)
+                x = np.asarray(source_data["x"], dtype=float)
+                y = np.asarray(source_data["y"], dtype=float)
+            by_name = {name: values[index].T for index, name in enumerate(names)}
+            needed = {"rho", "pressure", "u", "v", "mach", "schlieren", "omega_z"}
+            missing = sorted(needed - set(by_name))
+            if missing:
+                raise RuntimeError(f"training tensor {tensor} lacks {missing}")
+            cp = ((by_name["pressure"] - P_INF) / (0.5 * RHO_INF * U_INF**2)).astype(np.float32)
+            result = {
+                "x": x,
+                "y": y,
+                "rho": by_name["rho"].copy(),
+                "pressure": by_name["pressure"].copy(),
+                "u": by_name["u"].copy(),
+                "v": by_name["v"].copy(),
+                "gradient": by_name["schlieren"].copy(),
+                "vorticity": by_name["omega_z"].copy(),
+                "mach": by_name["mach"].copy(),
+                "cp": cp,
+                "step": int(step),
+                "time": float(step * case.dt),
+                "source": str(tensor.resolve()),
+            }
+            solid = body_mask(x, y)
+            for field in (
+                result["rho"],
+                result["pressure"],
+                result["u"],
+                result["v"],
+                result["gradient"],
+                result["vorticity"],
+                result["mach"],
+                result["cp"],
+            ):
+                field[solid] = np.nan
+            return result
+    source_format, steps = available_steps(case, discover_raw_steps)
+    if int(step) not in steps:
+        raise RuntimeError(
+            f"missing {source_format} field for {case.label} at step {step}"
+        )
+    if source_format == "binary_post_process":
+        assembled = assemble(str(case.case_dir), int(step), fmt="binary")
+        p0 = case.case_dir / "binary" / "p0" / f"{step}.dat"
+        root = case.case_dir / "binary" / "root" / f"{step}.dat"
+        source = p0 if p0.is_file() else root
+    else:
+        assembled = assemble_raw(case.case_dir, int(step), crop=VIEW, halo=3)
+        source = case.case_dir / "restart_data" / f"lustre_{step}.dat"
     needed = {"rho", "pres", "vel1", "vel2"}
     missing = sorted(needed - set(assembled.variables))
     if missing:
@@ -364,16 +434,21 @@ def render_reynolds_movies(
     output: Path,
     cases: list[CaseInfo],
     assemble: Any,
+    assemble_raw: Any,
+    discover_raw_steps: Any,
+    ml_dataset: Path,
     fps: int,
 ) -> int:
     times = np.arange(0.0, 6.0 + 0.05, 0.1)
-    available = {case.label: available_steps(case) for case in cases}
+    available = {
+        case.label: available_steps(case, discover_raw_steps)[1] for case in cases
+    }
     for case in cases:
         missing = [round(time / case.dt) for time in times if round(time / case.dt) not in available[case.label]]
         if missing:
             raise RuntimeError(f"{case.label} missing common movie steps {missing[:5]}")
-    grad_target = output / "MFC_REYNOLDS_T00_T06_SCHLIEREN.mp4"
-    vort_target = output / "MFC_REYNOLDS_T00_T06_VORTICITY.mp4"
+    grad_target = output / "MFC_REYNOLDS_SCREENING_T00_T06_SCHLIEREN.mp4"
+    vort_target = output / "MFC_REYNOLDS_SCREENING_T00_T06_VORTICITY.mp4"
     grad_fig, grad_images, grad_title = new_reynolds_movie_figure(
         cases, "gray", 0.0, GRAD_MAX, r"$|\nabla\rho|c/\rho_\infty$"
     )
@@ -387,14 +462,21 @@ def render_reynolds_movies(
     ):
         for index, time in enumerate(times):
             for case_index, case in enumerate(cases):
-                item = load_fields(case, round(time / case.dt), assemble)
+                item = load_fields(
+                    case,
+                    round(time / case.dt),
+                    assemble,
+                    assemble_raw,
+                    discover_raw_steps,
+                    ml_dataset,
+                )
                 extent = (item["x"][0], item["x"][-1], item["y"][0], item["y"][-1])
                 grad_images[case_index].set_data(item["gradient"].T)
                 grad_images[case_index].set_extent(extent)
                 vort_images[case_index].set_data(item["vorticity"].T)
                 vort_images[case_index].set_extent(extent)
-            grad_title.set_text(r"MFC Mach 3, $\alpha=40^\circ$: schlieren" + f", t={time:.1f}")
-            vort_title.set_text(r"MFC Mach 3, $\alpha=40^\circ$: vorticity" + f", t={time:.1f}")
+            grad_title.set_text(r"MFC screening fields, Mach 3, $\alpha=40^\circ$: schlieren" + f", t={time:.1f}")
+            vort_title.set_text(r"MFC screening fields, Mach 3, $\alpha=40^\circ$: vorticity" + f", t={time:.1f}")
             grad_writer.grab_frame(facecolor="white")
             vort_writer.grab_frame(facecolor="white")
             print(f"REYNOLDS_FRAME {index + 1}/{len(times)} t={time:.1f}", flush=True)
@@ -406,13 +488,27 @@ def render_reynolds_movies(
     return len(times)
 
 
-def render_long_movie(output: Path, case: CaseInfo, assemble: Any, fps: int) -> int:
-    steps = available_steps(case)
-    wanted = list(range(round(0.0 / case.dt), round(31.0 / case.dt) + 1, round(0.1 / case.dt)))
+def render_long_movie(
+    output: Path,
+    case: CaseInfo,
+    assemble: Any,
+    assemble_raw: Any,
+    discover_raw_steps: Any,
+    ml_dataset: Path,
+    fps: int,
+) -> dict[str, Any]:
+    steps = available_steps(case, discover_raw_steps)[1]
+    wanted = list(
+        range(
+            round(26.0 / case.dt),
+            round(31.0 / case.dt) + 1,
+            round(0.05 / case.dt),
+        )
+    )
     missing = [step for step in wanted if step not in steps]
     if missing:
-        raise RuntimeError(f"long view lacks {len(missing)} movie frames: {missing[:8]}")
-    target = output / "MFC_HLL_T00_T31_SCHLIEREN_VORTICITY.mp4"
+        raise RuntimeError(f"long t=26..31 tail lacks {len(missing)} movie frames: {missing[:8]}")
+    target = output / "MFC_HLL_T26_T31_SCHLIEREN_VORTICITY.mp4"
     fig, axes = plt.subplots(1, 2, figsize=(15.5, 7.6), constrained_layout=True)
     empty = np.zeros((32, 32), dtype=np.float32)
     im_grad = axes[0].imshow(empty, origin="lower", extent=VIEW, cmap="gray", vmin=0, vmax=GRAD_MAX)
@@ -427,19 +523,122 @@ def render_long_movie(output: Path, case: CaseInfo, assemble: Any, fps: int) -> 
     # 15.5x7.6 inches at 120 dpi gives an even 1860x912 H.264 frame.
     with writer.saving(fig, str(target), dpi=120):
         for index, step in enumerate(wanted):
-            item = load_fields(case, step, assemble)
+            item = load_fields(
+                case, step, assemble, assemble_raw, discover_raw_steps, ml_dataset
+            )
             extent = (item["x"][0], item["x"][-1], item["y"][0], item["y"][-1])
             im_grad.set_data(item["gradient"].T)
             im_grad.set_extent(extent)
             im_vort.set_data(item["vorticity"].T)
             im_vort.set_extent(extent)
-            title.set_text(r"MFC HLL, Mach 3, $\alpha=40^\circ$" + f", t={item['time']:.1f}")
+            title.set_text(r"MFC HLL, Mach 3, $\alpha=40^\circ$" + f", t={item['time']:.2f}")
             writer.grab_frame(facecolor="white")
-            print(f"LONG_FRAME {index + 1}/{len(wanted)} t={item['time']:.1f}", flush=True)
+            print(f"LONG_TAIL_FRAME {index + 1}/{len(wanted)} t={item['time']:.2f}", flush=True)
     plt.close(fig)
     if target.stat().st_size < 1_000_000:
         raise RuntimeError(f"movie is unexpectedly small: {target}")
-    return len(wanted)
+    return {"frames": len(wanted), "path": str(target)}
+
+
+def join_long_movie(
+    output: Path,
+    case: CaseInfo,
+    tail: dict[str, Any],
+    ffmpeg: str,
+    fps: int,
+) -> dict[str, Any]:
+    """Join validated historical movie evidence with the newly rendered tail."""
+
+    manifest_path = case.case_dir / "long_view_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    prefix = manifest.get("selected_movie_prefix", [])
+    if not prefix:
+        raise RuntimeError("long-view manifest has no validated t=0..26 movie prefix")
+    inputs: list[tuple[Path, float, float]] = []
+    cursor = 0.0
+    for row in prefix:
+        path = Path(str(row["path"]))
+        start = float(row["time_start"])
+        end = float(row["time_end"])
+        if not path.is_file() or path.stat().st_size < 1_000_000:
+            raise RuntimeError(f"validated prefix movie is unavailable: {path}")
+        expected_sha = row.get("sha256")
+        if not expected_sha or sha256(path) != expected_sha:
+            raise RuntimeError(f"validated prefix movie changed after preflight: {path}")
+        if start > cursor + 1.0e-8 or end <= cursor + 1.0e-8:
+            raise RuntimeError(f"non-contiguous prefix movie interval {start:g}..{end:g}")
+        inputs.append((path, start, end))
+        cursor = end
+    if cursor < 26.0 - 1.0e-8:
+        raise RuntimeError(f"movie prefix ends at t={cursor:g}, not t=26")
+    inputs.append((Path(str(tail["path"])), 26.0, 31.0))
+    command = [ffmpeg, "-y", "-loglevel", "warning"]
+    for path, _start, _end in inputs:
+        command.extend(["-i", str(path)])
+    filters: list[str] = []
+    labels: list[str] = []
+    for index, (_path, start, end) in enumerate(inputs):
+        expected = int(round((end - start) / 0.05)) + 1
+        first = 0 if index == 0 else 1
+        label = f"v{index}"
+        filters.append(
+            f"[{index}:v]fps={fps},trim=start_frame={first}:end_frame={expected},"
+            "setpts=PTS-STARTPTS,"
+            "scale=2160:912:force_original_aspect_ratio=decrease,"
+            "pad=2160:912:(ow-iw)/2:(oh-ih)/2:white,setsar=1,format=yuv420p"
+            f"[{label}]"
+        )
+        labels.append(f"[{label}]")
+    filters.append("".join(labels) + f"concat=n={len(labels)}:v=1:a=0[out]")
+    final = output / "MFC_HLL_T00_T31_SCHLIEREN_VORTICITY.mp4"
+    command.extend(
+        [
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[out]",
+            "-an",
+            "-r",
+            str(fps),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "19",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(final),
+        ]
+    )
+    completed = subprocess.run(command, text=True, capture_output=True)
+    if completed.returncode:
+        raise RuntimeError(
+            f"ffmpeg long-movie join failed ({completed.returncode}): "
+            f"{completed.stderr[-2000:]}"
+        )
+    if not final.is_file() or final.stat().st_size < 1_000_000:
+        raise RuntimeError(f"joined long movie is unexpectedly small: {final}")
+    try:
+        import imageio_ffmpeg
+
+        reader = imageio_ffmpeg.read_frames(str(final), pix_fmt="rgb24")
+        metadata = next(reader)
+        duration = float(metadata["duration"])
+        reader.close()
+    except (ImportError, KeyError, OSError, ValueError):
+        duration = math.nan
+    if math.isfinite(duration) and not 30.5 <= duration <= 31.5:
+        raise RuntimeError(f"joined t=0..31 movie duration is {duration:g} s")
+    return {
+        "path": str(final),
+        "frames_expected": 621,
+        "duration_seconds": duration if math.isfinite(duration) else None,
+        "prefix_sources": [str(path) for path, _start, _end in inputs[:-1]],
+        "tail_source": str(inputs[-1][0]),
+    }
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -455,6 +654,7 @@ def main() -> int:
     parser.add_argument("--case-table", type=Path, required=True)
     parser.add_argument("--mfc-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--ml-dataset", type=Path, required=True)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--skip-movies", action="store_true")
     args = parser.parse_args()
@@ -462,6 +662,9 @@ def main() -> int:
         parser.error("--fps must be positive")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    ml_dataset = args.ml_dataset.resolve()
+    if not (ml_dataset / "DATASET_OK.txt").is_file():
+        raise RuntimeError(f"completed ML dataset is missing: {ml_dataset}")
     cases = read_cases(args.case_table.resolve())
     by_label = {case.label: case for case in cases}
     primary = [by_label[label] for label in PRIMARY_LABELS]
@@ -472,13 +675,17 @@ def main() -> int:
         from mfc.viz.reader import assemble
     except ImportError as exc:
         raise RuntimeError(f"cannot import the pinned MFC field reader from {mfc_root}") from exc
+    try:
+        from raw_restart_reader import assemble_raw, discover_raw_steps
+    except ImportError as exc:
+        raise RuntimeError("cannot import the raw MFC restart reader") from exc
 
     final_cases = [by_label["re1e4_f180"], *primary]
     final_fields: dict[str, dict[str, Any]] = {}
     metrics: list[dict[str, Any]] = []
     for case in final_cases:
-        step = max(available_steps(case))
-        item = load_fields(case, step, assemble)
+        step = max(available_steps(case, discover_raw_steps)[1])
+        item = load_fields(case, step, assemble, assemble_raw, discover_raw_steps)
         if not math.isclose(item["time"], 6.0, abs_tol=1.0e-8):
             raise RuntimeError(f"{case.label} final comparison time is {item['time']}, not 6")
         final_fields[case.label] = item
@@ -486,8 +693,10 @@ def main() -> int:
         print(f"FINAL_FIELD=PASS case={case.label} step={step}", flush=True)
 
     long_case = by_label["re1e6_long_t31"]
-    long_step = max(available_steps(long_case))
-    long_final = load_fields(long_case, long_step, assemble)
+    long_step = max(available_steps(long_case, discover_raw_steps)[1])
+    long_final = load_fields(
+        long_case, long_step, assemble, assemble_raw, discover_raw_steps
+    )
     if not math.isclose(long_final["time"], 31.0, abs_tol=1.0e-8):
         raise RuntimeError(f"long HLL final time is {long_final['time']}, not 31")
     metrics.append(field_metrics(long_case, long_final))
@@ -507,14 +716,45 @@ def main() -> int:
     movie_report: dict[str, Any] = {"status": "SKIPPED"}
     if not args.skip_movies:
         ffmpeg = configure_ffmpeg()
-        reynolds_frames = render_reynolds_movies(output, primary, assemble, args.fps)
-        long_frames = render_long_movie(output, by_label["re1e6_long_t31"], assemble, args.fps)
+        movie_cases = [
+            by_label["re1e4_f180"],
+            by_label["re1e4_f270"],
+            by_label["re5e4_f180"],
+            by_label["re1e5_f180"],
+        ]
+        reynolds_frames = render_reynolds_movies(
+            output,
+            movie_cases,
+            assemble,
+            assemble_raw,
+            discover_raw_steps,
+            ml_dataset,
+            args.fps,
+        )
+        long_tail = render_long_movie(
+            output,
+            by_label["re1e6_long_t31"],
+            assemble,
+            assemble_raw,
+            discover_raw_steps,
+            ml_dataset,
+            args.fps,
+        )
+        long_join = join_long_movie(
+            output,
+            by_label["re1e6_long_t31"],
+            long_tail,
+            ffmpeg,
+            args.fps,
+        )
         movie_report = {
             "status": "PASS",
             "ffmpeg": ffmpeg,
             "fps": args.fps,
             "reynolds_frames_per_movie": reynolds_frames,
-            "long_frames": long_frames,
+            "screening_movie_cases": [case.label for case in movie_cases],
+            "long_tail": long_tail,
+            "long_join": long_join,
             "movies": {},
         }
         for path in sorted(output.glob("*.mp4")):
