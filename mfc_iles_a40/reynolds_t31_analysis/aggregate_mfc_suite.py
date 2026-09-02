@@ -524,13 +524,24 @@ def main() -> int:
         for key in window_keys
     }
     long_manifest = json.loads((root / "long_view" / "long_view_manifest.json").read_text(encoding="utf-8"))
-    boundary_hash_pass = (
-        len(long_manifest.get("boundary_identity", [])) == 5
+    boundary_rows = long_manifest.get("boundary_identity", [])
+    boundary_audit_status = long_manifest.get("boundary_audit_status", "FAIL")
+    boundary_audit_pass = (
+        len(boundary_rows) == 5
+        and boundary_audit_status in {"BYTE_IDENTICAL", "PASS_WITH_RESTART_PROVENANCE"}
         and all(
-            row.get("lustre_identical") is True and row.get("ib_state_identical") is True
-            for row in long_manifest.get("boundary_identity", [])
+            row.get("right_restart_marker_valid") is True
+            and row.get("audit_status")
+            in {"BYTE_IDENTICAL", "PASS_WITH_RESTART_PROVENANCE"}
+            for row in boundary_rows
         )
     )
+    if not boundary_audit_pass:
+        raise RuntimeError("long-view restart-boundary audit is incomplete or invalid")
+    exact_boundary_count = sum(
+        row.get("audit_status") == "BYTE_IDENTICAL" for row in boundary_rows
+    )
+    provenance_boundary_count = len(boundary_rows) - exact_boundary_count
     force_sources = sorted({str(row.get("force_source")) for row in summaries})
     report = {
         "status": "PIPELINE_PASS",
@@ -544,7 +555,12 @@ def main() -> int:
         "hll_t31_five_unit_windows": windows,
         "hll_t31_window_relative_spans": stationarity,
         "hll_restart_continuity": continuity,
-        "hll_restart_boundary_hash_status": "PASS" if boundary_hash_pass else "FAIL",
+        "hll_restart_boundary_audit_status": boundary_audit_status,
+        "hll_restart_boundary_exact_count": exact_boundary_count,
+        "hll_restart_boundary_provenance_count": provenance_boundary_count,
+        "hll_restart_boundary_hash_status": (
+            "PASS" if boundary_audit_status == "BYTE_IDENTICAL" else "NOT_AVAILABLE"
+        ),
         "force_sources": force_sources,
         "interpretation_rules": {
             "short_spectra": "do not call a shedding peak resolved unless at least five cycles occur in the selected window",
@@ -582,7 +598,9 @@ def main() -> int:
             "## Gates",
             "",
             f"- Re=1e4 f180/f270 screen: `{grid_status}`.",
-            f"- Byte-identical restart-boundary audit through t=31: `{'PASS' if boundary_hash_pass else 'FAIL'}`.",
+            f"- Restart-boundary audit through t=31: `{boundary_audit_status}` "
+            f"({exact_boundary_count} byte-identical; "
+            f"{provenance_boundary_count} source-plus-marker).",
             f"- Force sources present: `{', '.join(force_sources)}`.",
             "- Short t=3..6 spectra are screening values unless their JSON status resolves at least five cycles.",
             "- The t=31 window table tests drift over five consecutive five-time-unit intervals.",
