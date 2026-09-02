@@ -39,8 +39,8 @@ The submitter discovers the newest *completed* inputs, checks their PASS
 markers and final checkpoint sizes, runs the analyzer self-test, and submits a
 dependency chain:
 
-1. Construct a symlink-only t=0..31 view and hash every duplicated restart
-   boundary.
+1. Construct a symlink-only t=0..31 view, validate every source boundary
+   against the next stage's PASS marker, and hash every retained duplicate.
 2. Analyze six case-table rows with at most two simultaneous array tasks.
 3. Render common-scale final fields and three MP4 movies.
 4. Aggregate tables, plots, audit JSON, and a compact ZIP bundle.
@@ -59,8 +59,9 @@ The printed `ANALYSIS_ROOT` contains:
 - `summary/hll_t31_five_unit_windows.csv`: consecutive t=6..11 through
   t=26..31 stationarity windows.
 - `summary/hll_t31_restart_continuity.csv`: force-increment checks around every
-  restart boundary; `long_view/long_view_manifest.json` contains the stronger
-  byte-identity hashes.
+  restart boundary; `long_view/long_view_manifest.json` records source hashes,
+  restart-marker hashes, and byte comparisons wherever the copied boundary was
+  retained by MFC.
 - `summary/*.png`: matched force histories, pressure/viscous force components,
   lift spectra, shock histories, Reynolds trends, and long-time stationarity.
 - `summary/reynolds_neighbor_relative_changes.csv`: adjacent-Re screening
