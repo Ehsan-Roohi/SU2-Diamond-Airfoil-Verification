@@ -85,6 +85,20 @@ def link_file(source: Path, target: Path) -> None:
     target.symlink_to(source.resolve())
 
 
+def read_pass_marker(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        raise RuntimeError(f"missing restart PASS marker: {path}")
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if "=" not in raw_line:
+            continue
+        key, value = raw_line.split("=", 1)
+        values[key.strip()] = value.strip()
+    if values.get("status") != "PASS":
+        raise RuntimeError(f"invalid restart PASS marker: {path}")
+    return values
+
+
 def boundary_audit(
     sources: Iterable[tuple[str, float, float, Path]],
 ) -> list[dict[str, object]]:
@@ -101,22 +115,61 @@ def boundary_audit(
             "left_stage": left[0],
             "right_stage": right[0],
         }
+        marker_path = right[3] / "RUN_OK_RESTART.txt"
+        marker = read_pass_marker(marker_path)
+        try:
+            marker_start_step = int(marker["start_step"])
+        except (KeyError, ValueError) as exc:
+            raise RuntimeError(
+                f"restart marker lacks a valid start_step: {marker_path}"
+            ) from exc
+        if marker_start_step != step:
+            raise RuntimeError(
+                f"restart marker begins at step {marker_start_step}, expected {step}: "
+                f"{marker_path}"
+            )
+        record["right_restart_marker"] = str(marker_path.resolve())
+        record["right_restart_marker_sha256"] = digest(marker_path)
+        record["right_restart_marker_valid"] = True
+
+        right_copies_retained = True
         for stem, expected in (("lustre", F270_FIELD_BYTES), ("ib_state", IB_STATE_BYTES)):
             first = left[3] / "restart_data" / f"{stem}_{step}.dat"
             second = right[3] / "restart_data" / f"{stem}_{step}.dat"
-            if not first.is_file() or not second.is_file():
-                raise RuntimeError(f"missing duplicated boundary {stem} at step {step}")
+            if not first.is_file():
+                raise RuntimeError(
+                    f"missing source boundary {stem} at step {step}: {first}"
+                )
             check_size(first, expected, stem)
-            check_size(second, expected, stem)
             first_sha = digest(first)
-            second_sha = digest(second)
+            record[f"{stem}_left_path"] = str(first.resolve())
             record[f"{stem}_sha256"] = first_sha
+            record[f"{stem}_left_sha256"] = first_sha
+
+            if not second.is_file():
+                right_copies_retained = False
+                record[f"{stem}_right_present"] = False
+                record[f"{stem}_right_sha256"] = None
+                record[f"{stem}_identical"] = None
+                record[f"{stem}_audit"] = "SOURCE_PLUS_RESTART_PROVENANCE"
+                continue
+
+            check_size(second, expected, stem)
+            second_sha = digest(second)
+            record[f"{stem}_right_present"] = True
+            record[f"{stem}_right_sha256"] = second_sha
             record[f"{stem}_identical"] = first_sha == second_sha
             if first_sha != second_sha:
                 raise RuntimeError(
                     f"restart discontinuity: {stem}_{step}.dat differs across "
                     f"{left[0]} -> {right[0]}"
                 )
+            record[f"{stem}_audit"] = "BYTE_IDENTICAL"
+        record["audit_status"] = (
+            "BYTE_IDENTICAL"
+            if right_copies_retained
+            else "PASS_WITH_RESTART_PROVENANCE"
+        )
         rows.append(record)
     return rows
 
@@ -210,6 +263,11 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "first_step": wanted[0],
         "last_step": wanted[-1],
         "boundary_identity": boundaries,
+        "boundary_audit_status": (
+            "BYTE_IDENTICAL"
+            if all(row["audit_status"] == "BYTE_IDENTICAL" for row in boundaries)
+            else "PASS_WITH_RESTART_PROVENANCE"
+        ),
         "static_restart_companions": static_files,
         "files": links,
     }
@@ -220,7 +278,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "status=PASS\n"
         f"time_range={args.start_time:g}:{args.end_time:g}\n"
         f"snapshots={len(links)}\n"
-        f"boundary_checks={len(boundaries)}\n",
+        f"boundary_checks={len(boundaries)}\n"
+        f"boundary_audit_status={report['boundary_audit_status']}\n",
         encoding="utf-8",
     )
     return report
