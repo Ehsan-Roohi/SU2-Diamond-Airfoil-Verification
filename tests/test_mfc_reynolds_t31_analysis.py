@@ -79,6 +79,8 @@ for token in (
     "job-name=mfc-cv-data",
     "MFC_CV_DATASET_SUBMITTED=PASS",
     "TRAINING_DATASET=",
+    "ws_allocate",
+    "SCRATCH_EXPIRATION_WARNING.txt",
 ):
     assert token in cv_submitter, token
 assert "PREP_JOB" not in cv_submitter

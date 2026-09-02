@@ -30,8 +30,11 @@ bash mfc_iles_a40/reynolds_t31_analysis/unity_submit_cv_dataset.sh
 
 This exports the four complete t=0..6 screening sequences plus the canonical
 unique retained Re=1e6 fields through t=31. Check it with
-`unity_check_cv_dataset.sh`; the finished training root is
-`ANALYSIS_ROOT/ml_dataset`.
+`ANALYSIS_ROOT=/printed/path unity_check_cv_dataset.sh`; the finished training
+root is `ANALYSIS_ROOT/ml_dataset`. If `/project` has less than 12 GB free, the
+submitter automatically finds or allocates the 30-day Unity HPC Workspace
+named `mfc-a40-cv` and writes there. Scratch has no snapshots, so copy or
+archive the finished reproducible dataset before its printed expiration.
 
 The complete article-analysis workflow remains below.
 

@@ -5,6 +5,7 @@ trap 'rc=$?; trap - ERR; echo "ERROR: CV-dataset submitter stopped at line $LINE
 PROJECT_ROOT=${PROJECT_ROOT:-/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data}
 REPO_ROOT=${REPO_ROOT:-/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification}
 MFC_ROOT=${MFC_ROOT:-$REPO_ROOT/third_party/MFC-0c9a1d43-iles-portable-v3}
+OUTPUT_PARENT_WAS_SET=${OUTPUT_PARENT+x}
 OUTPUT_PARENT=${OUTPUT_PARENT:-$PROJECT_ROOT/analysis}
 MAIL_USER=${MAIL_USER:-roohie@umass.edu}
 SLURM_USER=${SLURM_USER:-${USER:-$(id -un)}}
@@ -12,6 +13,9 @@ PYTHON_BIN=${PYTHON_BIN:-$(command -v python3)}
 CONSTRAINT=${CONSTRAINT:-intel&x86_64_v4}
 CV_MEMORY=${CV_MEMORY:-48G}
 CV_WALLTIME=${CV_WALLTIME:-24:00:00}
+REQUIRED_FREE_BYTES=${REQUIRED_FREE_BYTES:-12000000000}
+SCRATCH_WORKSPACE_NAME=${SCRATCH_WORKSPACE_NAME:-mfc-a40-cv}
+SCRATCH_WORKSPACE_DAYS=${SCRATCH_WORKSPACE_DAYS:-30}
 
 BASE=$REPO_ROOT/mfc_iles_a40/reynolds_t31_analysis
 VIEW_BUILDER=$BASE/build_cv_raw_view.py
@@ -113,6 +117,69 @@ require_series() {
     }
 }
 
+available_bytes() {
+    df -PB1 "$1" | awk 'NR==2 {print $4}'
+}
+
+find_scratch_workspace() {
+    ws_list -v 2>/dev/null | awk -v suffix="-${SCRATCH_WORKSPACE_NAME}" '
+        $1 == "workspace" && $2 == "directory" && $NF ~ (suffix "$") {
+            print $NF
+            exit
+        }
+    '
+}
+
+allocate_scratch_workspace() {
+    local allocation path
+    allocation=$(ws_allocate -m "$MAIL_USER" -r 3 \
+        "$SCRATCH_WORKSPACE_NAME" "$SCRATCH_WORKSPACE_DAYS")
+    printf '%s\n' "$allocation" >&2
+    path=$(printf '%s\n' "$allocation" | awk '
+        $1 ~ /^\/scratch[^/]*\/workspace\// {print $1; exit}
+    ')
+    [[ -n "$path" && -d "$path" ]] || {
+        echo "ERROR: ws_allocate succeeded but its workspace path was not resolved." >&2
+        exit 5
+    }
+    printf '%s\n' "$path"
+}
+
+select_output_parent() {
+    local available scratch
+    mkdir -p "$OUTPUT_PARENT"
+    available=$(available_bytes "$OUTPUT_PARENT")
+    echo "MFC_CV_OUTPUT_CANDIDATE=$OUTPUT_PARENT"
+    echo "MFC_CV_OUTPUT_AVAILABLE_BYTES=${available:-UNKNOWN}"
+    if [[ "$available" =~ ^[0-9]+$ ]] && ((available >= REQUIRED_FREE_BYTES)); then
+        return
+    fi
+    if [[ -n "$OUTPUT_PARENT_WAS_SET" ]]; then
+        echo "ERROR: explicit OUTPUT_PARENT has less than $REQUIRED_FREE_BYTES bytes free: $OUTPUT_PARENT" >&2
+        exit 5
+    fi
+    if ! command -v ws_list >/dev/null 2>&1 || ! command -v ws_allocate >/dev/null 2>&1; then
+        echo "ERROR: project storage is full and Unity HPC Workspace commands are unavailable." >&2
+        exit 5
+    fi
+    scratch=$(find_scratch_workspace || true)
+    if [[ -z "$scratch" ]]; then
+        scratch=$(allocate_scratch_workspace)
+        echo "MFC_CV_SCRATCH_WORKSPACE_CREATED=$scratch"
+    else
+        echo "MFC_CV_SCRATCH_WORKSPACE_REUSED=$scratch"
+    fi
+    OUTPUT_PARENT=$scratch
+    mkdir -p "$OUTPUT_PARENT"
+    available=$(available_bytes "$OUTPUT_PARENT")
+    echo "MFC_CV_OUTPUT_SELECTED=$OUTPUT_PARENT"
+    echo "MFC_CV_OUTPUT_AVAILABLE_BYTES=${available:-UNKNOWN}"
+    [[ "$available" =~ ^[0-9]+$ ]] && ((available >= REQUIRED_FREE_BYTES)) || {
+        echo "ERROR: scratch workspace has less than $REQUIRED_FREE_BYTES bytes free: $OUTPUT_PARENT" >&2
+        exit 5
+    }
+}
+
 [[ -x "$PYTHON_BIN" ]] || { echo "ERROR: invalid PYTHON_BIN=$PYTHON_BIN" >&2; exit 2; }
 for file in "$VIEW_BUILDER" "$RAW_RESTART_READER" "$CV_EXPORT_SCRIPT" \
             "$CV_LABEL_SCRIPT" "$CV_LOADER" "$CV_RUNNER"; do
@@ -144,12 +211,7 @@ if not callable(assemble):
 print("MFC_CV_PYTHON_PREFLIGHT=PASS")
 PY
 
-mkdir -p "$OUTPUT_PARENT"
-available=$(df -PB1 "$OUTPUT_PARENT" | awk 'NR==2 {print $4}')
-if [[ "$available" =~ ^[0-9]+$ ]] && ((available < 12000000000)); then
-    echo "ERROR: less than 12 GB free for the vision dataset." >&2
-    exit 5
-fi
+select_output_parent
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 ANALYSIS_ROOT=${ANALYSIS_ROOT:-$OUTPUT_PARENT/mfc_a40_cv_dataset_$STAMP}
@@ -158,6 +220,14 @@ ANALYSIS_ROOT=${ANALYSIS_ROOT:-$OUTPUT_PARENT/mfc_a40_cv_dataset_$STAMP}
     exit 5
 }
 mkdir -p "$ANALYSIS_ROOT/ml_dataset" "$ANALYSIS_ROOT/sources"
+if [[ "$ANALYSIS_ROOT" == /scratch* ]]; then
+    {
+        printf 'storage=UNITY_HPC_WORKSPACE_SCRATCH\n'
+        printf 'snapshot_or_backup=NONE\n'
+        printf 'workspace_days_at_allocation=%s\n' "$SCRATCH_WORKSPACE_DAYS"
+        printf 'action=copy or archive the finished dataset before workspace expiration\n'
+    } >"$ANALYSIS_ROOT/SCRATCH_EXPIRATION_WARNING.txt"
+fi
 RE1E6_VIEW=$ANALYSIS_ROOT/sources/re1e6_retained
 "$PYTHON_BIN" "$VIEW_BUILDER" --initial "$RE1E6_INITIAL" \
     --chain "$LONG_CHAIN" --output "$RE1E6_VIEW"
@@ -204,3 +274,7 @@ echo "CV_DATASET_JOB=$CV_JOB"
 echo "WATCH=squeue -j $CV_JOB"
 echo "TRAINING_DATASET=$ANALYSIS_ROOT/ml_dataset"
 echo "FINAL=$ANALYSIS_ROOT/ml_dataset/DATASET_OK.txt"
+if [[ "$ANALYSIS_ROOT" == /scratch* ]]; then
+    echo "STORAGE=TEMPORARY_UNITY_SCRATCH_NO_SNAPSHOTS"
+    echo "COPY_BEFORE_EXPIRATION=$ANALYSIS_ROOT/SCRATCH_EXPIRATION_WARNING.txt"
+fi
