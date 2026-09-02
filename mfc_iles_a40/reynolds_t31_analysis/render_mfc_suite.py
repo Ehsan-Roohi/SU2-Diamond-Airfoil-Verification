@@ -60,16 +60,21 @@ def sha256(path: Path) -> str:
 
 
 def configure_ffmpeg() -> str:
-    executable = shutil.which("ffmpeg")
+    executable = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg")
     if executable is None:
         try:
             import imageio_ffmpeg
 
             executable = imageio_ffmpeg.get_ffmpeg_exe()
         except ImportError as exc:
-            raise RuntimeError("ffmpeg or imageio_ffmpeg is required for movies") from exc
-    if not Path(executable).is_file():
-        raise RuntimeError(f"ffmpeg executable is unavailable: {executable}")
+            raise RuntimeError(
+                "ffmpeg is unavailable: load an ffmpeg module, install "
+                "imageio-ffmpeg for this Python, or set FFMPEG_BIN"
+            ) from exc
+    executable_path = Path(executable).expanduser()
+    if not executable_path.is_file() or not os.access(executable_path, os.X_OK):
+        raise RuntimeError(f"ffmpeg executable is unavailable: {executable_path}")
+    executable = str(executable_path.resolve())
     matplotlib.rcParams["animation.ffmpeg_path"] = executable
     return executable
 
