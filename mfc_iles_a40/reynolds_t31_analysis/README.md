@@ -19,6 +19,16 @@ structure clearly reappears.
 
 ## Unity submission
 
+Movie rendering needs an ffmpeg executable. The preflight accepts, in order,
+`FFMPEG_BIN=/absolute/path/to/ffmpeg`, an `ffmpeg` executable on `PATH`,
+or the binary bundled by the `imageio-ffmpeg` Python package. If Unity does
+not provide an ffmpeg module, install the small Python fallback for the same
+interpreter selected by `PYTHON_BIN`:
+
+```bash
+"${PYTHON_BIN:-$(command -v python3)}" -m pip install --user imageio-ffmpeg
+```
+
 From the pinned workflow branch, run:
 
 ```bash
