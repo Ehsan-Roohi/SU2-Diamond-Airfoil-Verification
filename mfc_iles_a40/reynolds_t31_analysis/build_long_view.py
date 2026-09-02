@@ -68,17 +68,85 @@ def choose_sources(
     return sources
 
 
-def read_pass_marker(path: Path) -> dict[str, str]:
+def read_key_values(path: Path, description: str) -> dict[str, str]:
     if not path.is_file():
-        raise RuntimeError(f"missing PASS marker: {path}")
+        raise RuntimeError(f"missing {description}: {path}")
     values: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         if "=" in raw_line:
             key, value = raw_line.split("=", 1)
             values[key.strip()] = value.strip()
+    return values
+
+
+def read_pass_marker(path: Path) -> dict[str, str]:
+    values = read_key_values(path, "PASS marker")
     if values.get("status") != "PASS":
         raise RuntimeError(f"invalid PASS marker: {path}")
     return values
+
+
+def stage_provenance(
+    left: tuple[str, float, float, Path],
+    right: tuple[str, float, float, Path],
+    step: int,
+) -> dict[str, object]:
+    """Validate the immutable submission record for one restart handoff.
+
+    MFC can rewrite the copied start-step output when a restarted simulation
+    begins, so the two same-step files are not guaranteed to remain byte
+    identical.  ``stage.env`` records the actual source/target relationship
+    created by the chain submitter before either stage runs.
+    """
+
+    left_label, _left_start, boundary_time, left_dir = left
+    right_label, right_start, right_stop, right_dir = right
+    path = right_dir / "stage.env"
+    values = read_key_values(path, "restart provenance record")
+    expected_text = {
+        "STAGE": right_label,
+        "START_STEP": str(step),
+        "STOP_STEP": str(round(right_stop / DT)),
+    }
+    for key, expected in expected_text.items():
+        if values.get(key) != expected:
+            raise RuntimeError(
+                f"invalid {key} in {path}: {values.get(key)!r}; "
+                f"expected {expected!r}"
+            )
+    expected_paths = {
+        "SOURCE_DIR": left_dir.resolve(),
+        "CASE_DIR": right_dir.resolve(),
+    }
+    for key, expected in expected_paths.items():
+        raw_value = values.get(key)
+        if raw_value is None or Path(raw_value).resolve() != expected:
+            raise RuntimeError(
+                f"invalid {key} in {path}: {raw_value!r}; expected {expected}"
+            )
+    for key, actual, expected in (
+        ("START_TIME", values.get("START_TIME"), right_start),
+        ("STOP_TIME", values.get("STOP_TIME"), right_stop),
+    ):
+        try:
+            matches = math.isclose(float(actual), expected, abs_tol=1.0e-12)
+        except (TypeError, ValueError):
+            matches = False
+        if not matches:
+            raise RuntimeError(
+                f"invalid {key} in {path}: {actual!r}; expected {expected:g}"
+            )
+    if not math.isclose(boundary_time, right_start, abs_tol=1.0e-12):
+        raise RuntimeError(
+            f"internal stage boundary mismatch: {left_label} -> {right_label}"
+        )
+    return {
+        "path": str(path.resolve()),
+        "sha256": digest(path),
+        "source_directory": str(left_dir.resolve()),
+        "target_directory": str(right_dir.resolve()),
+        "valid": True,
+    }
 
 
 def csv_coverage(path: Path, required: Iterable[str]) -> dict[str, object]:
@@ -263,8 +331,10 @@ def inventory(initial: Path, chain: Path) -> dict[str, object]:
                 <= step
                 <= round(ending / DT)
             ):
-                # Prefer the later restart stage at a duplicated boundary.
-                all_fields[step] = (label, path)
+                # The preceding stage's final checkpoint is the canonical
+                # restart source.  A later stage may rewrite its copied
+                # start-step file when MFC begins the restarted simulation.
+                all_fields.setdefault(step, (label, path))
         raw.append(
             {
                 "stage": label,
@@ -328,6 +398,7 @@ def inventory(initial: Path, chain: Path) -> dict[str, object]:
     boundaries: list[dict[str, object]] = []
     for left, right in zip(sources[:-1], sources[1:]):
         step = round(left[2] / DT)
+        provenance = stage_provenance(left, right, step)
         marker_path = right[3] / "RUN_OK_RESTART.txt"
         marker = read_pass_marker(marker_path)
         if int(marker.get("start_step", "-1")) != step:
@@ -342,18 +413,19 @@ def inventory(initial: Path, chain: Path) -> dict[str, object]:
             "right_restart_marker": str(marker_path.resolve()),
             "right_restart_marker_sha256": digest(marker_path),
             "right_restart_marker_valid": True,
+            "stage_provenance": provenance,
             "left_raw_present": first is not None,
             "right_raw_present": second is not None,
         }
         if first is not None and second is not None:
             first_sha, second_sha = digest(first), digest(second)
-            if first_sha != second_sha:
-                raise RuntimeError(
-                    f"raw restart discontinuity at step {step}: "
-                    f"{left[0]} -> {right[0]}"
-                )
             record.update(
-                audit_status="BYTE_IDENTICAL_RAW",
+                audit_status=(
+                    "BYTE_IDENTICAL_RAW"
+                    if first_sha == second_sha
+                    else "NONIDENTICAL_RAW_PLUS_CHAIN_PROVENANCE"
+                ),
+                raw_byte_identity=first_sha == second_sha,
                 left_sha256=first_sha,
                 right_sha256=second_sha,
             )

@@ -20,6 +20,21 @@ structure clearly reappears.
 
 ## Unity submission
 
+The machine-vision dataset is available as an independent, first-priority
+job. It has no dependency on force analysis, long-view article diagnostics,
+movies, or aggregation:
+
+```bash
+bash mfc_iles_a40/reynolds_t31_analysis/unity_submit_cv_dataset.sh
+```
+
+This exports the four complete t=0..6 screening sequences plus the canonical
+unique retained Re=1e6 fields through t=31. Check it with
+`unity_check_cv_dataset.sh`; the finished training root is
+`ANALYSIS_ROOT/ml_dataset`.
+
+The complete article-analysis workflow remains below.
+
 Movie rendering needs an ffmpeg executable. The preflight accepts, in order,
 `FFMPEG_BIN=/absolute/path/to/ffmpeg`, an `ffmpeg` executable on `PATH`,
 or the binary bundled by the `imageio-ffmpeg` Python package. If Unity does
@@ -42,8 +57,12 @@ diagnostics, and retained long-chain evidence before it calls `sbatch`. It then
 submits a dependency chain:
 
 1. Construct a symlink-only hybrid t=0..31 view. Dense diagnostics and movies
-   are reused for deliberately pruned periods; retained raw boundaries are
-   hashed wherever both copies still exist.
+   are reused for deliberately pruned periods. Retained raw boundaries are
+   hashed wherever both copies still exist, but byte identity is not assumed:
+   MFC may rewrite the copied start-step output. The preceding stage's final
+   checkpoint is canonical, and every handoff is checked against `stage.env`,
+   its source/target directories, exact step range, and the next stage's PASS
+   marker. Any nonidentical duplicate remains explicit in the final audit.
 2. Analyze six case-table rows with at most two simultaneous array tasks. The
    original pruned Re=1e6 case uses its native IB load history plus its final
    raw field if a complete prior diagnostic package is unavailable.

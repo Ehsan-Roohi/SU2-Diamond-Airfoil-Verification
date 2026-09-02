@@ -594,6 +594,7 @@ def main() -> int:
     boundary_audit_status = long_manifest.get("boundary_audit_status", "FAIL")
     accepted_boundary_statuses = {
         "BYTE_IDENTICAL_RAW",
+        "NONIDENTICAL_RAW_PLUS_CHAIN_PROVENANCE",
         "SINGLE_RETAINED_RAW_PLUS_MARKER",
         "DERIVED_HISTORY_PLUS_MARKER",
     }
@@ -602,6 +603,7 @@ def main() -> int:
         and boundary_audit_status == "PASS_HYBRID_RETAINED_AND_DERIVED"
         and all(
             row.get("right_restart_marker_valid") is True
+            and row.get("stage_provenance", {}).get("valid") is True
             and row.get("audit_status") in accepted_boundary_statuses
             for row in boundary_rows
         )
@@ -617,6 +619,10 @@ def main() -> int:
     )
     derived_boundary_count = sum(
         row.get("audit_status") == "DERIVED_HISTORY_PLUS_MARKER"
+        for row in boundary_rows
+    )
+    nonidentical_boundary_count = sum(
+        row.get("audit_status") == "NONIDENTICAL_RAW_PLUS_CHAIN_PROVENANCE"
         for row in boundary_rows
     )
     force_sources = sorted({str(row.get("force_source")) for row in summaries})
@@ -646,12 +652,13 @@ def main() -> int:
         "hll_restart_continuity": continuity,
         "hll_restart_boundary_audit_status": boundary_audit_status,
         "hll_restart_boundary_exact_count": exact_boundary_count,
+        "hll_restart_boundary_nonidentical_count": nonidentical_boundary_count,
         "hll_restart_boundary_single_raw_count": single_raw_boundary_count,
         "hll_restart_boundary_derived_count": derived_boundary_count,
         "hll_restart_boundary_hash_status": (
-            "PARTIAL_PASS_WHERE_BOTH_RAW_COPIES_RETAINED"
-            if exact_boundary_count
-            else "NOT_AVAILABLE"
+            "RECORDED_NOT_ASSUMED_CONTINUOUS"
+            if exact_boundary_count or nonidentical_boundary_count
+            else "NO_DUPLICATED_RAW_BOUNDARY_RETAINED"
         ),
         "force_sources": force_sources,
         "interpretation_rules": {
@@ -692,6 +699,7 @@ def main() -> int:
             f"- Re=1e4 f180/f270 screen: `{grid_status}`.",
             f"- Restart-boundary audit through t=31: `{boundary_audit_status}` "
             f"({exact_boundary_count} byte-identical; "
+            f"{nonidentical_boundary_count} nonidentical-with-provenance; "
             f"{single_raw_boundary_count} single-retained-raw; "
             f"{derived_boundary_count} derived-history-plus-marker).",
             f"- Force sources present: `{', '.join(force_sources)}`.",
