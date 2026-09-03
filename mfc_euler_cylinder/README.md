@@ -11,6 +11,9 @@ when `REYNOLDS` is positive.  In that mode `fluid_pp(1)%Re(1)=Re_D/U_inf`,
 `viscous=T`, `weno_Re_flux=T`, and the immersed cylinder is no-slip.  These
 runs are intended as fixed-grid shock/wake ML datasets; without a wall-normal
 resolution study they are not quantitative boundary-layer or force validation.
+The viscous mode uses CFL coefficient 0.05; Euler retains 0.20.  This follows
+the observed Re=10,000 f180 stop at step 1870, where the earlier viscous
+coefficient produced `vcfl=1.00068065`.
 
 No validated solution field is committed here.  The superficially similar
 public `tbellosta/Mach3-cylinder` repository supplies an old SU2 configuration
@@ -105,6 +108,24 @@ DATA_ROOT=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_viscous_cylinder \
 MACH=2.7 REYNOLDS=10000 GRID=f180 FINAL_TIME=8 SAVE_DT=0.1 \
 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_euler_cylinder.sh)
 ```
+
+### Recover the Re=10,000 f180 VCFL stop
+
+The failed 2026-09-03 run contains six complete checkpoints through step 1665
+(`t=0.5`).  Do not discard or overwrite them.  The recovery launcher selects
+the last size-consistent state/IB pair, re-indexes it on the CFL-0.05 clock,
+runs a short gate through `t=0.7`, continues in two dependent segments through
+`t=8`, and finally produces one-rank Silo fields for `t=0.5...8`:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_recover_viscous_cylinder_vcfl.sh)
+```
+
+The source directory is read-only.  A production segment is never submitted
+without an `afterok` dependency on the preceding stage.  Success is recorded
+as `production/RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt`.  The original six
+states and recovered continuation form one leakage-free trajectory even though
+their checkpoint indices use different time-step clocks.
 
 Only after the pilot is numerically physical and displays a developed wake
 should the identical fixed-grid runs at `REYNOLDS=50000` and

@@ -14,6 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CASE_PATH = ROOT / "mfc_euler_cylinder" / "case.py"
 RH_PATH = ROOT / "mfc_euler_cylinder" / "rankine_hugoniot_reference.py"
+VCFL_RECOVERY_PATH = (
+    ROOT / "mfc_euler_cylinder" / "unity_recover_viscous_cylinder_vcfl.sh"
+)
 
 
 def load_module(path: Path, name: str):
@@ -42,6 +45,7 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertIn("vortex is not ground truth", metadata["label_scope"])
 
     def test_viscous_mode_is_no_slip_and_uses_requested_reynolds_number(self):
+        euler, _ = case_module.build_case(2.7, "f180", 8.0, 0.1)
         case, metadata = case_module.build_case(
             2.7, "f180", 8.0, 0.1, reynolds=1.0e4
         )
@@ -50,8 +54,42 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertEqual(case["weno_Re_flux"], "T")
         self.assertEqual(case["patch_ib(1)%slip"], "F")
         self.assertAlmostEqual(case["fluid_pp(1)%Re(1)"], 1.0e4 / 2.7)
+        self.assertAlmostEqual(case["dt"], euler["dt"] / 4.0)
+        self.assertEqual(metadata["cfl_coefficient"], 0.05)
         self.assertEqual(metadata["reynolds_number"], 1.0e4)
         self.assertIn("expert review required", metadata["label_scope"])
+
+    def test_viscous_restart_reindexes_physical_time_on_safe_clock(self):
+        case, metadata = case_module.build_case(
+            2.7,
+            "f180",
+            0.7,
+            0.025,
+            reynolds=1.0e4,
+            start_time=0.5,
+            restart=True,
+        )
+        self.assertEqual(case["t_step_start"], 6660)
+        self.assertEqual(case["t_step_stop"], 9324)
+        self.assertEqual(case["t_step_save"], 333)
+        self.assertEqual(case["num_patches"], 0)
+        self.assertEqual(case["old_ic"], "T")
+        self.assertEqual(case["old_grid"], "T")
+        self.assertEqual(case["t_step_old"], 0)
+        self.assertNotIn("patch_icpp(1)%geometry", case)
+        self.assertAlmostEqual(metadata["actual_start_time"], 0.5)
+
+    def test_restart_arguments_are_consistent(self):
+        with self.assertRaises(ValueError):
+            case_module.build_case(
+                2.7, "f180", 0.7, 0.025, reynolds=1.0e4,
+                start_time=0.5, restart=False
+            )
+        with self.assertRaises(ValueError):
+            case_module.build_case(
+                2.7, "f180", 0.7, 0.025, reynolds=1.0e4,
+                start_time=0.0, restart=True
+            )
 
     def test_reynolds_validation_rejects_ambiguous_small_values(self):
         with self.assertRaises(ValueError):
@@ -138,6 +176,18 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertIn("mfc_viscous_cylinder", launcher)
         self.assertIn("RUN_OK_MFC_CYLINDER.txt", launcher)
         self.assertNotIn("EXPECTED_SNAPSHOTS=31", launcher)
+
+    def test_vcfl_recovery_is_dt4_restart_and_afterok_chained(self):
+        launcher = VCFL_RECOVERY_PATH.read_text(encoding="utf-8")
+        self.assertIn('SOURCE_SAFE_STEP="${SOURCE_SAFE_STEP:-auto}"', launcher)
+        self.assertIn("source_dt / new_dt, 4.0", launcher)
+        self.assertIn('GATE_FINAL_TIME="${GATE_FINAL_TIME:-0.7}"', launcher)
+        self.assertIn('--dependency="afterok:$GATE_JOB"', launcher)
+        self.assertIn('--dependency="afterok:$PROD1_JOB"', launcher)
+        self.assertIn('--dependency="afterok:$PROD2_JOB"', launcher)
+        self.assertIn("RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt", launcher)
+        self.assertIn('cp --reflink=auto "$SOURCE_STATE"', launcher)
+        self.assertNotIn('rm -rf', launcher)
 
     def test_mach3_normal_shock_reference(self):
         result = rh_module.normal_shock(3.0)

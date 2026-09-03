@@ -21,6 +21,7 @@ P_INF = 1.0 / GAMMA
 CYLINDER_DIAMETER = 1.0
 CYLINDER_RADIUS = 0.5 * CYLINDER_DIAMETER
 CFL_COEFFICIENT = 0.20
+VISCOUS_CFL_COEFFICIENT = 0.05
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,8 @@ def build_case(
     save_dt: float,
     output_format: str = "silo",
     reynolds: float = 0.0,
+    start_time: float = 0.0,
+    restart: bool = False,
 ) -> tuple[dict[str, object], dict[str, float | int | str]]:
     """Return an MFC case dictionary and deterministic run metadata."""
 
@@ -69,13 +72,19 @@ def build_case(
         raise ValueError("--reynolds must be zero (Euler) or finite and positive")
     if 0.0 < reynolds < 100.0:
         raise ValueError("positive --reynolds must be at least 100")
+    if not math.isfinite(start_time) or start_time < 0.0 or start_time >= final_time:
+        raise ValueError("--start-time must satisfy 0 <= start_time < final_time")
+    if restart != (start_time > 0.0):
+        raise ValueError("restart mode requires a positive --start-time and vice versa")
 
     grid = GRIDS[grid_name]
     dx = (grid.x_end - grid.x_beg) / (grid.m + 1)
     dy = (grid.y_end - grid.y_beg) / (grid.n + 1)
     a_inf = math.sqrt(GAMMA * P_INF / RHO_INF)
     speed_inf = mach * a_inf
-    dt = CFL_COEFFICIENT * min(dx, dy) / (speed_inf + a_inf)
+    viscous = reynolds > 0.0
+    cfl_coefficient = VISCOUS_CFL_COEFFICIENT if viscous else CFL_COEFFICIENT
+    dt = cfl_coefficient * min(dx, dy) / (speed_inf + a_inf)
 
     # Keep every requested output interval equal and make the final state a
     # saved state.  The actual times differ from the request by less than one
@@ -83,9 +92,14 @@ def build_case(
     save_every = max(1, round(save_dt / dt))
     save_count = max(1, round(final_time / (save_every * dt)))
     stop_step = save_count * save_every
+    start_step = round(start_time / dt)
     actual_save_dt = save_every * dt
     actual_final_time = stop_step * dt
-    viscous = reynolds > 0.0
+    actual_start_time = start_step * dt
+    if not math.isclose(actual_start_time, start_time, rel_tol=0.0, abs_tol=1.0e-12):
+        raise ValueError("--start-time must be an integer multiple of the selected dt")
+    if start_step % save_every:
+        raise ValueError("--start-time must lie on the requested save-time lattice")
 
     case: dict[str, object] = {
         "run_time_info": "T",
@@ -97,10 +111,10 @@ def build_case(
         "n": grid.n,
         "p": 0,
         "dt": dt,
-        "t_step_start": 0,
+        "t_step_start": start_step,
         "t_step_stop": stop_step,
         "t_step_save": save_every,
-        "num_patches": 1,
+        "num_patches": 0 if restart else 1,
         "model_eqns": 2,
         "alt_soundspeed": "F",
         "num_fluids": 1,
@@ -146,19 +160,26 @@ def build_case(
         "schlieren_alpha(1)": 0.5,
         "schlieren_alpha(2)": 0.5,
         "parallel_io": "T",
-        "patch_icpp(1)%geometry": 3,
-        "patch_icpp(1)%x_centroid": 0.5 * (grid.x_beg + grid.x_end),
-        "patch_icpp(1)%y_centroid": 0.5 * (grid.y_beg + grid.y_end),
-        "patch_icpp(1)%length_x": grid.x_end - grid.x_beg,
-        "patch_icpp(1)%length_y": grid.y_end - grid.y_beg,
-        "patch_icpp(1)%vel(1)": speed_inf,
-        "patch_icpp(1)%vel(2)": 0.0,
-        "patch_icpp(1)%pres": P_INF,
-        "patch_icpp(1)%alpha_rho(1)": RHO_INF,
-        "patch_icpp(1)%alpha(1)": 1.0,
         "fluid_pp(1)%gamma": 1.0 / (GAMMA - 1.0),
         "fluid_pp(1)%pi_inf": 0.0,
     }
+    if restart:
+        case.update({"t_step_old": 0, "old_ic": "T", "old_grid": "T"})
+    else:
+        case.update(
+            {
+                "patch_icpp(1)%geometry": 3,
+                "patch_icpp(1)%x_centroid": 0.5 * (grid.x_beg + grid.x_end),
+                "patch_icpp(1)%y_centroid": 0.5 * (grid.y_beg + grid.y_end),
+                "patch_icpp(1)%length_x": grid.x_end - grid.x_beg,
+                "patch_icpp(1)%length_y": grid.y_end - grid.y_beg,
+                "patch_icpp(1)%vel(1)": speed_inf,
+                "patch_icpp(1)%vel(2)": 0.0,
+                "patch_icpp(1)%pres": P_INF,
+                "patch_icpp(1)%alpha_rho(1)": RHO_INF,
+                "patch_icpp(1)%alpha(1)": 1.0,
+            }
+        )
     if viscous:
         # MFC's Reynolds parameter is the inverse nondimensional dynamic
         # viscosity.  With rho_inf=D=a_inf=1, Re_D=rho*U*D/mu and therefore
@@ -173,7 +194,10 @@ def build_case(
         "cells_per_diameter": grid.cells_per_diameter,
         "dx_over_d": dx / CYLINDER_DIAMETER,
         "dy_over_d": dy / CYLINDER_DIAMETER,
+        "cfl_coefficient": cfl_coefficient,
         "dt": dt,
+        "requested_start_time": start_time,
+        "actual_start_time": actual_start_time,
         "requested_final_time": final_time,
         "actual_final_time": actual_final_time,
         "requested_save_dt": save_dt,
@@ -202,6 +226,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grid", choices=tuple(GRIDS), default="f90")
     parser.add_argument("--final-time", type=float, default=3.0)
     parser.add_argument("--save-dt", type=float, default=0.1)
+    parser.add_argument("--start-time", type=float, default=0.0)
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="load old_grid/old_ic from restart_data at --start-time",
+    )
     parser.add_argument(
         "--reynolds",
         type=float,
@@ -222,6 +252,8 @@ def main() -> None:
             args.save_dt,
             args.format,
             args.reynolds,
+            args.start_time,
+            args.restart,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
