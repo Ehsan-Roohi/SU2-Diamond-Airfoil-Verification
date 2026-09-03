@@ -90,6 +90,7 @@ HISTORY_FIELDS = (
     "force_x",
     "force_y",
     "force_z",
+    "unused_nonfinite_fields",
     "drag",
     "lift",
     "CD",
@@ -225,9 +226,14 @@ def scan_source(spec: SourceSpec) -> SourceInventory:
                     f"expected one immersed body, found {len(body_records)}"
                 )
             values = body_records[0]
-            if not all(math.isfinite(value) for value in values):
-                raise RuntimeError("record contains NaN or Inf")
-            time_value, force_x, force_y, force_z = values[:4]
+            # This is a 2-D case. MFC's fixed-width record also contains 3-D
+            # force/torque/kinematic slots that can legitimately remain NaN.
+            # Only time, Fx, and Fy are required for the in-plane load.
+            if not all(math.isfinite(value) for value in values[:3]):
+                raise RuntimeError("required 2-D fields time/Fx/Fy contain NaN or Inf")
+            time_value, force_x, force_y = values[:3]
+            force_z = values[3] if math.isfinite(values[3]) else ""
+            unused_nonfinite = sum(not math.isfinite(value) for value in values[3:])
             expected_time = step * spec.dt
             if not math.isclose(
                 time_value,
@@ -252,6 +258,7 @@ def scan_source(spec: SourceSpec) -> SourceInventory:
                     "force_x": force_x,
                     "force_y": force_y,
                     "force_z": force_z,
+                    "unused_nonfinite_fields": unused_nonfinite,
                     "drag": drag,
                     "lift": lift,
                     "CD": cd,
@@ -306,7 +313,8 @@ def scan_source(spec: SourceSpec) -> SourceInventory:
 
 
 def records_equivalent(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    keys = ("time", "force_x", "force_y", "force_z")
+    # Only the in-plane state is part of the 2-D force-continuity contract.
+    keys = ("time", "force_x", "force_y")
     return all(
         math.isclose(
             float(left[key]),
@@ -784,9 +792,10 @@ def render_pdf(
         fig.text(0.93, 0.95, overall_status, ha="right", fontsize=14, fontweight="bold", color=status_color)
         method = (
             "Direct source: MFC restart_data/ib_state_<step>.dat. The first record values are "
-            "time, Fx, Fy, Fz. Forces are rotated into freestream drag/lift axes and normalized "
+            "time, Fx, and Fy. Forces are rotated into freestream drag/lift axes and normalized "
             "with q_inf = 0.5 rho_inf U_inf^2 = 4.5 and c = 1. No load is inferred from the "
-            "512x512 CV tensors, and no pressure/viscous split is invented."
+            "512x512 CV tensors, and no pressure/viscous split is invented. Unused 3-D slots "
+            "may be NaN in this 2-D calculation and are audited but never used."
         )
         fig.text(0.07, 0.855, method, fontsize=9.5, wrap=True, va="top", linespacing=1.45)
 
@@ -990,6 +999,9 @@ def _inventory_row(inventory: SourceInventory) -> dict[str, Any]:
         "time_mismatches": " | ".join(inventory.time_mismatches),
         "per_process_files": inventory.per_process_files,
         "maximum_noninitial_force": inventory.maximum_noninitial_force,
+        "unused_nonfinite_values": sum(
+            int(row.get("unused_nonfinite_fields", 0)) for row in inventory.records
+        ),
         "status": inventory.status,
         "usable": inventory.usable,
     }
@@ -1070,6 +1082,8 @@ The MFC binary schema is pinned to `{MFC_SOURCE_REV}`:
 ## Scientific limits
 
 - The files provide total native IB load; they do not separate pressure and viscous load.
+- Only the required 2-D fields `time`, `Fx`, and `Fy` must be finite. Unused 3-D
+  record slots may be NaN and are counted in the source inventory, not treated as force corruption.
 - Temporal standard deviation is flow variability, not numerical uncertainty.
 - Reynolds comparisons use f180 and 3<=t<=6. The mature Re=1e6 window 26<=t<=31
   is deliberately reported separately.
@@ -1237,7 +1251,8 @@ def _write_test_record(path: Path, time_value: float, cd: float, cl: float) -> N
     lift = cl * Q_INF * CHORD
     force_x = drag * math.cos(alpha) - lift * math.sin(alpha)
     force_y = drag * math.sin(alpha) + lift * math.cos(alpha)
-    values = [time_value, force_x, force_y, 0.0] + [0.0] * 16
+    # Mimic a 2-D MFC record whose unused 3-D slots were never initialized.
+    values = [time_value, force_x, force_y] + [float("nan")] * 17
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(struct.pack(f"={RECORD_WIDTH}d", *values))
 

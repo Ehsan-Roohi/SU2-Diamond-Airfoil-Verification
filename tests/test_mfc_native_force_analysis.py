@@ -42,6 +42,24 @@ def test_global_record_contract(tmp_path: Path) -> None:
     assert records[0][:4] == (4.2, 1.0, 2.0, 3.0)
 
 
+def test_unused_3d_nan_is_valid_for_2d_force(tmp_path: Path) -> None:
+    case_dir = tmp_path / "case"
+    restart = case_dir / "restart_data"
+    restart.mkdir(parents=True)
+    values = [0.0, 1.0, 2.0] + [float("nan")] * 17
+    (restart / "ib_state_0.dat").write_bytes(struct.pack("=20d", *values))
+    values = [1.0, 1.1, 2.1] + [float("nan")] * 17
+    (restart / "ib_state_1.dat").write_bytes(struct.pack("=20d", *values))
+    source = MODULE.SourceSpec(
+        "re1e4_f180", 1.0e4, "f180", "test", "t00_t01",
+        case_dir, 1.0, 0, 1, 1, 0
+    )
+    inventory = MODULE.scan_source(source)
+    assert inventory.status == "VALID"
+    assert inventory.records[1]["force_z"] == ""
+    assert inventory.records[1]["unused_nonfinite_fields"] == 17
+
+
 def test_mismatched_boundary_is_not_equivalent() -> None:
     left = {"time": 6.0, "force_x": 1.0, "force_y": 2.0, "force_z": 0.0}
     right = dict(left)

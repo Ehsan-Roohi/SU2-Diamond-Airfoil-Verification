@@ -22,7 +22,12 @@ each global IB record contains 20 native-endian double-precision values:
 The source contract is visible in
 [`m_data_output.fpp`](https://github.com/MFlowCode/MFC/blob/0c9a1d434410175ac483b8d71646455444e3b7eb/src/simulation/m_data_output.fpp#L929-L1067).
 
-The analyzer rotates Cartesian force into freestream axes at alpha=40 degrees
+For this two-dimensional calculation, only `time`, `Fx`, and `Fy` are required.
+MFC still writes the fixed-width 3-D record, so unused `Fz`, torque, or kinematic
+slots may legitimately contain `NaN`; they are counted in the inventory but are
+never used in force extraction.
+
+The analyzer rotates the finite in-plane force into freestream axes at alpha=40 degrees
 and uses rho=1, U=3, chord=1, and q=4.5. The result is total native `CL` and
 `CD`; a pressure/viscous decomposition is not available in `ib_state` and is
 therefore not fabricated.
@@ -30,7 +35,7 @@ therefore not fabricated.
 ## Quality gates
 
 - exactly one 160-byte body record is required per global file;
-- all 20 values must be finite;
+- required 2-D values `time`, `Fx`, and `Fy` must be finite; unused 3-D slots are audited;
 - stored time must agree with global step times `dt`;
 - an all-zero noninitial force history is rejected;
 - duplicated restart-boundary records are compared numerically;
