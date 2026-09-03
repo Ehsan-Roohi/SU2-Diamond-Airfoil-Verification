@@ -7,7 +7,44 @@ remote="${REMOTE_URL:-https://github.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verific
 scratch_parent="${SCRATCH_PARENT:-/scratch4/workspace/roohie_umass_edu-mfc-a40-cv}"
 run_parent="${RUN_PARENT:-$scratch_parent/su2-a048-data/runs/euler_a048_full}"
 publish_parent="${PUBLISH_PARENT:-$scratch_parent/su2-a048-github-publish}"
-python_bin="${PYTHON_BIN:-$(command -v python3)}"
+
+# Unity module shells may export PYTHONNOUSERSITE even though compatible NumPy
+# and Matplotlib wheels already exist under ~/.local.  Re-enable that location
+# first; if no usable interpreter remains, bootstrap an isolated Scratch venv.
+unset PYTHONNOUSERSITE || true
+requested_python="${PYTHON_BIN:-}"
+python_bin=""
+declare -a python_candidates=()
+[[ -z "$requested_python" ]] || python_candidates+=("$requested_python")
+candidate="$(command -v python3 2>/dev/null || true)"
+[[ -z "$candidate" ]] || python_candidates+=("$candidate")
+candidate="$(command -v python 2>/dev/null || true)"
+[[ -z "$candidate" ]] || python_candidates+=("$candidate")
+
+for candidate in "${python_candidates[@]}"; do
+    if [[ -x "$candidate" ]] && "$candidate" -c 'import numpy, matplotlib' >/dev/null 2>&1; then
+        python_bin="$candidate"
+        break
+    fi
+done
+
+if [[ -z "$python_bin" ]]; then
+    bootstrap_python="${requested_python:-$(command -v python3 2>/dev/null || command -v python)}"
+    venv="$scratch_parent/tools/a048-publish-venv"
+    pip_cache="$scratch_parent/tools/pip-cache"
+    mkdir -p "$(dirname "$venv")" "$pip_cache"
+    if [[ ! -x "$venv/bin/python" ]]; then
+        echo "A048_PYTHON_BOOTSTRAP=$venv"
+        "$bootstrap_python" -m venv "$venv"
+    fi
+    if ! "$venv/bin/python" -c 'import numpy, matplotlib' >/dev/null 2>&1; then
+        echo "A048_INSTALLING_PLOT_DEPENDENCIES=$venv"
+        PIP_CACHE_DIR="$pip_cache" "$venv/bin/python" -m pip install \
+            --disable-pip-version-check \
+            'numpy>=1.26,<3' 'matplotlib>=3.8,<4'
+    fi
+    python_bin="$venv/bin/python"
+fi
 
 if [[ -z "${RUN_ROOT:-}" ]]; then
     if [[ -L "$run_parent/latest" ]]; then
@@ -27,6 +64,7 @@ for module in ("numpy", "matplotlib"):
     importlib.import_module(module)
 print("A048_PLOT_PREFLIGHT=PASS")
 PY
+echo "A048_PYTHON=$python_bin"
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 checkout="$publish_parent/checkout-$stamp"
