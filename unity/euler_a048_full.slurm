@@ -110,13 +110,15 @@ for angle in 0 4 8; do
   cp "$repo_root/cases/$case_name/startup.cfg" "$case_dir/startup.cfg"
   cp "$repo_root/cases/$case_name/second_order.cfg" "$case_dir/second_order.cfg"
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] START $case_name"
-  set +e
-  python3 "$repo_root/scripts/run_case.py" "$case_dir" \
-    --threads "$threads" \
-    --expected-results "$repo_root/EXPECTED_RESULTS.csv" \
-    2>&1 | tee "$status_dir/${case_name}_wrapper.log"
-  wrapper_rc="${PIPESTATUS[0]}"
-  set -e
+  wrapper_rc=0
+  if python3 "$repo_root/scripts/run_case.py" "$case_dir" \
+      --threads "$threads" \
+      --expected-results "$repo_root/EXPECTED_RESULTS.csv" \
+      2>&1 | tee "$status_dir/${case_name}_wrapper.log"; then
+    wrapper_rc=0
+  else
+    wrapper_rc="${PIPESTATUS[0]}"
+  fi
   echo "$wrapper_rc" > "$status_dir/$case_name.rc"
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] END $case_name wrapper_rc=$wrapper_rc"
 done
