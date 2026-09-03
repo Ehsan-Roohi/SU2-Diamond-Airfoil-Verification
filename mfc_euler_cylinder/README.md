@@ -38,6 +38,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airf
 ```
 
 This submits a small compile/smoke gate followed by the Mach-2.7 `f90` pilot.
+Simulation and post-processing are separate: the flow solver uses all assigned
+ranks, while Silo is generated with one rank to avoid the observed parallel
+library-teardown fault.  A failed serial Silo stage automatically retries MFC
+binary output.
 The launcher prints `RUN_BASE`, `CASE_DIR`, `SMOKE_JOB`, `PROD_JOB`, and the
 path to `submission.env`.  Monitor both jobs with:
 
@@ -49,6 +53,25 @@ squeue -j "$JOBS"
 Success is recorded by
 `$CASE_DIR/RUN_OK_MFC_EULER_CYLINDER.txt`.  Do not launch the expensive grid
 study until this pilot passes and its bow shock is visually audited.
+
+### Recover a completed simulation after a parallel Silo crash
+
+If all 31 restart states, including the final state, exist but the MFC
+post-processor exits with signal 11, preserve the original directory and run:
+
+```bash
+RECOVER_CASE_DIR=/absolute/path/to/the/f90/case \
+MACH=2.7 GRID=f90 \
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_euler_cylinder.sh)
+```
+
+Recovery does not repeat the simulation and does not alter its checkpoints.
+It creates a directory under the capacious Unity scratch filesystem containing
+read-only links, retries Silo with one MPI rank, and falls back to one-rank MFC
+binary fields if Silo still fails.  Override `RECOVERY_DATA_ROOT` only when a
+different safe absolute scratch path is required.  Only a complete 31-state
+product receives
+`RUN_OK_MFC_EULER_CYLINDER_RECOVERED.txt`.
 
 ## Subsequent frozen runs
 
@@ -72,6 +95,7 @@ Return the complete `CASE_DIR` if storage permits.  At minimum retain:
 - `RUN_OK_MFC_EULER_CYLINDER.txt`, `FIELD_INVENTORY.tsv`, and all logs;
 - `restart_data/lustre_x_cb.dat` and `restart_data/lustre_y_cb.dat`;
 - the last five `restart_data/lustre_<step>.dat` states;
-- the corresponding last five `silo_hdf5/root/collection_<step>.silo` states.
+- the corresponding last five products identified in `FIELD_INVENTORY.tsv`
+  or `POSTPROCESS_INVENTORY.tsv` (Silo or MFC binary).
 
 All states from one Mach/grid run must remain in one leakage-free case group.

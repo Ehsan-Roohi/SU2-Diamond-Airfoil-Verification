@@ -17,6 +17,8 @@ GRID="${GRID:-f90}"
 FINAL_TIME="${FINAL_TIME:-3.0}"
 SAVE_DT="${SAVE_DT:-0.1}"
 AFTER_JOB="${AFTER_JOB:-none}"
+RECOVER_CASE_DIR="${RECOVER_CASE_DIR:-}"
+RECOVERY_DATA_ROOT="${RECOVERY_DATA_ROOT:-/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_euler_cylinder_recovery}"
 EXPECTED_MFC_COMMIT=0c9a1d434410175ac483b8d71646455444e3b7eb
 MFC_SOURCE_ROOT="${MFC_SOURCE_ROOT:-$ROOT/third_party/MFC-0c9a1d43}"
 MFC_CYL_ROOT="${MFC_CYL_ROOT:-$ROOT/third_party/MFC-0c9a1d43-euler-cylinder-portable-v3}"
@@ -120,6 +122,206 @@ for forbidden in (
 path.write_text(text)
 PY
 PORTABLE_CMAKE_SHA256="$(sha256sum "$GPU_CMAKE" | awk '{print $1}')"
+
+# A production simulation may finish all checkpoints while the multi-rank
+# Silo post-processor crashes during library teardown.  Recovery never edits
+# that source run: it links the immutable restart files into a new directory,
+# retries Silo with one MPI rank, and falls back to MFC binary output if the
+# serial Silo process still exits nonzero.
+if [[ -n "$RECOVER_CASE_DIR" ]]; then
+    SOURCE_CASE_DIR="${RECOVER_CASE_DIR%/}"
+    if [[ "$SOURCE_CASE_DIR" != /* || "$SOURCE_CASE_DIR" == / ]]; then
+        echo "ERROR: RECOVER_CASE_DIR must be a non-root absolute path." >&2
+        exit 2
+    fi
+    SOURCE_RESTART="$SOURCE_CASE_DIR/restart_data"
+    [[ -d "$SOURCE_RESTART" ]] || {
+        echo "ERROR: missing source restart directory: $SOURCE_RESTART" >&2
+        exit 2
+    }
+    if [[ "$RECOVERY_DATA_ROOT" != /* || "$RECOVERY_DATA_ROOT" == / ]]; then
+        echo "ERROR: RECOVERY_DATA_ROOT must be a non-root absolute path." >&2
+        exit 2
+    fi
+
+    STAMP="$(date +%Y%m%d-%H%M%S)"
+    SOURCE_RUN_TAG="$(basename "$(dirname "$SOURCE_CASE_DIR")")"
+    RECOVERY_DIR="$RECOVERY_DATA_ROOT/${SOURCE_RUN_TAG}_${GRID}_post_${STAMP}"
+    mkdir -p "$RECOVERY_DIR/restart_data"
+    for name in case.py rankine_hugoniot_reference.py validation_protocol.json; do
+        curl -fL --retry 3 "$RAW_BASE/$name" -o "$RECOVERY_DIR/$name"
+    done
+
+    read -r STOP_STEP SAVE_EVERY EXPECTED_SNAPSHOTS < <(
+        python3 "$RECOVERY_DIR/case.py" --mach "$MACH" --grid "$GRID" \
+            --final-time "$FINAL_TIME" --save-dt "$SAVE_DT" --format binary | \
+            python3 -c 'import json,sys; c=json.load(sys.stdin); print(c["t_step_stop"],c["t_step_save"],c["t_step_stop"]//c["t_step_save"]+1)'
+    )
+    (( EXPECTED_SNAPSHOTS == 31 )) || {
+        echo "ERROR: recovery expected 31 checkpoints, got $EXPECTED_SNAPSHOTS." >&2
+        exit 3
+    }
+
+    reference_size=""
+    for (( step=0; step<=STOP_STEP; step+=SAVE_EVERY )); do
+        source="$SOURCE_RESTART/lustre_${step}.dat"
+        target="$RECOVERY_DIR/restart_data/lustre_${step}.dat"
+        [[ -s "$source" ]] || {
+            echo "ERROR: missing or empty source checkpoint: $source" >&2
+            exit 3
+        }
+        size="$(stat -c %s "$source")"
+        if [[ -z "$reference_size" ]]; then
+            reference_size="$size"
+        elif [[ "$size" != "$reference_size" ]]; then
+            echo "ERROR: checkpoint $source has $size bytes; expected $reference_size." >&2
+            exit 3
+        fi
+        ln -s "$source" "$target"
+    done
+    for name in lustre_x_cb.dat lustre_y_cb.dat lustre_ib.dat; do
+        source="$SOURCE_RESTART/$name"
+        [[ -s "$source" ]] || { echo "ERROR: missing $source" >&2; exit 3; }
+        target="$RECOVERY_DIR/restart_data/$name"
+        ln -s "$source" "$target"
+    done
+    while IFS= read -r -d '' source; do
+        target="$RECOVERY_DIR/restart_data/$(basename "$source")"
+        [[ -e "$target" || -L "$target" ]] || ln -s "$source" "$target"
+    done < <(find "$SOURCE_RESTART" -maxdepth 1 -type f -name 'ib_state_*.dat' -print0)
+
+    python3 "$RECOVERY_DIR/rankine_hugoniot_reference.py" --mach "$MACH" \
+        --output "$RECOVERY_DIR/RH_REFERENCE.json"
+    RECOVERY_SBATCH="$RECOVERY_DIR/run_post_recovery.sbatch"
+    cat >"$RECOVERY_SBATCH" <<'RECOVERY_SBATCH'
+#!/usr/bin/env bash
+#SBATCH --partition=cpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --constraint=intel&x86_64_v4
+
+set -Eeuo pipefail
+: "${RECOVERY_DIR:?}"
+: "${SOURCE_CASE_DIR:?}"
+: "${MFC_CYL_ROOT:?}"
+: "${MACH:?}"
+: "${GRID:?}"
+: "${FINAL_TIME:?}"
+: "${SAVE_DT:?}"
+: "${EXPECTED_SNAPSHOTS:?}"
+: "${PORTABLE_CMAKE_SHA256:?}"
+
+module purge
+module load openmpi/5.0.3
+export OMP_NUM_THREADS=1
+GPU_CMAKE="$MFC_CYL_ROOT/cmake/GPU.cmake"
+[[ "$(sha256sum "$GPU_CMAKE" | awk '{print $1}')" == "$PORTABLE_CMAKE_SHA256" ]] || {
+    echo "ERROR: MFC compiler configuration changed after submission." >&2
+    exit 5
+}
+
+CASE_ARGS=(--mach "$MACH" --grid "$GRID" --final-time "$FINAL_TIME" \
+    --save-dt "$SAVE_DT")
+cd "$MFC_CYL_ROOT"
+LOCK_FILE="$MFC_CYL_ROOT/build/.mfc-euler-cylinder.lock"
+if command -v flock >/dev/null 2>&1 && [[ "${MFC_LOCK_HELD:-0}" != 1 ]]; then
+    export MFC_LOCK_HELD=1
+    exec flock -s -w 7200 "$LOCK_FILE" bash "$0"
+fi
+
+./mfc.sh validate "$RECOVERY_DIR/case.py" -- "${CASE_ARGS[@]}" --format silo \
+    2>&1 | tee "$RECOVERY_DIR/validate-post-recovery.log"
+
+read -r STOP_STEP SAVE_EVERY < <(
+    python3 "$RECOVERY_DIR/case.py" "${CASE_ARGS[@]}" --format binary | \
+        python3 -c 'import json,sys; c=json.load(sys.stdin); print(c["t_step_stop"],c["t_step_save"])'
+)
+
+set +e
+./mfc.sh run "$RECOVERY_DIR/case.py" -n 1 -j 1 --mpi --no-gpu \
+    --binary mpirun --no-build -t post_process -- "${CASE_ARGS[@]}" --format silo \
+    2>&1 | tee "$RECOVERY_DIR/post-serial-silo.log"
+silo_status=${PIPESTATUS[0]}
+set -e
+
+silo_complete=1
+for (( step=0; step<=STOP_STEP; step+=SAVE_EVERY )); do
+    [[ -s "$RECOVERY_DIR/silo_hdf5/root/collection_${step}.silo" ]] || silo_complete=0
+done
+leaf_count=0
+if [[ -d "$RECOVERY_DIR/silo_hdf5" ]]; then
+    leaf_count="$(find "$RECOVERY_DIR/silo_hdf5" -mindepth 2 -type f -name '*.silo' ! -path '*/root/*' | wc -l)"
+fi
+(( leaf_count >= EXPECTED_SNAPSHOTS )) || silo_complete=0
+
+output_mode=silo
+if (( silo_status != 0 || silo_complete != 1 )); then
+    if [[ -d "$RECOVERY_DIR/silo_hdf5" ]]; then
+        mv "$RECOVERY_DIR/silo_hdf5" "$RECOVERY_DIR/silo_hdf5_failed_serial"
+    fi
+    set +e
+    ./mfc.sh run "$RECOVERY_DIR/case.py" -n 1 -j 1 --mpi --no-gpu \
+        --binary mpirun --no-build -t post_process -- "${CASE_ARGS[@]}" --format binary \
+        2>&1 | tee "$RECOVERY_DIR/post-serial-binary.log"
+    binary_status=${PIPESTATUS[0]}
+    set -e
+    (( binary_status == 0 )) || {
+        echo "ERROR: both serial Silo and serial binary post-processing failed." >&2
+        exit "$binary_status"
+    }
+    output_mode=binary
+fi
+
+INVENTORY="$RECOVERY_DIR/POSTPROCESS_INVENTORY.tsv"
+printf 'step\ttime\trestart_bytes\tproduct\tproduct_bytes\n' >"$INVENTORY"
+DT="$(python3 "$RECOVERY_DIR/case.py" "${CASE_ARGS[@]}" --format binary | \
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["dt"])')"
+for (( step=0; step<=STOP_STEP; step+=SAVE_EVERY )); do
+    restart="$RECOVERY_DIR/restart_data/lustre_${step}.dat"
+    if [[ "$output_mode" == silo ]]; then
+        product="$RECOVERY_DIR/silo_hdf5/root/collection_${step}.silo"
+    else
+        product="$(find "$RECOVERY_DIR/binary" -type f -name "${step}.dat" -print -quit)"
+    fi
+    [[ -s "$product" ]] || { echo "ERROR: missing recovered product for step $step" >&2; exit 44; }
+    time_value="$(python3 -c "print(${step} * ${DT})")"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$step" "$time_value" \
+        "$(stat -c %s "$restart")" "$product" "$(stat -c %s "$product")" >>"$INVENTORY"
+done
+
+final_product="$(tail -n 1 "$INVENTORY" | cut -f4)"
+printf 'status=PASS\nsource_case=%s\nrecovery_dir=%s\noutput_mode=%s\nsnapshots=%s\nfinal_product=%s\n' \
+    "$SOURCE_CASE_DIR" "$RECOVERY_DIR" "$output_mode" "$EXPECTED_SNAPSHOTS" \
+    "$final_product" | tee "$RECOVERY_DIR/RUN_OK_MFC_EULER_CYLINDER_RECOVERED.txt"
+RECOVERY_SBATCH
+
+    RECOVERY_JOB="$(sbatch --parsable \
+        --job-name=mfc-euler-cyl-post-recover \
+        --output="$RECOVERY_DIR/slurm-%j.out" \
+        --error="$RECOVERY_DIR/slurm-%j.err" \
+        --export="ALL,RECOVERY_DIR=$RECOVERY_DIR,SOURCE_CASE_DIR=$SOURCE_CASE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,EXPECTED_SNAPSHOTS=$EXPECTED_SNAPSHOTS,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
+        "$RECOVERY_SBATCH")"
+    RECOVERY_JOB="${RECOVERY_JOB%%;*}"
+    [[ "$RECOVERY_JOB" =~ ^[0-9]+$ ]] || {
+        echo "ERROR: invalid recovery job ID '$RECOVERY_JOB'" >&2
+        exit 4
+    }
+    RECOVERY_ENV="$RECOVERY_DIR/submission.env"
+    {
+        printf 'SOURCE_CASE_DIR=%q\n' "$SOURCE_CASE_DIR"
+        printf 'RECOVERY_DIR=%q\n' "$RECOVERY_DIR"
+        printf 'RECOVERY_JOB=%q\n' "$RECOVERY_JOB"
+    } >"$RECOVERY_ENV"
+    echo "SOURCE_CASE_DIR=$SOURCE_CASE_DIR"
+    echo "RECOVERY_DIR=$RECOVERY_DIR"
+    echo "RECOVERY_JOB=$RECOVERY_JOB"
+    echo "RECOVERY_ENV=$RECOVERY_ENV"
+    echo "NEXT: squeue -j $RECOVERY_JOB"
+    exit 0
+fi
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 MACH_TAG="${MACH/./p}"
@@ -235,7 +437,7 @@ LOG="$CASE_DIR/mfc-${GRID}.log"
 set +e
 ./mfc.sh run "$CASE_DIR/case.py" \
     -n "$SLURM_NTASKS" -j "$SLURM_NTASKS" --mpi --no-gpu --binary mpirun \
-    "${build_args[@]}" -t pre_process simulation post_process -- "${CASE_ARGS[@]}" \
+    "${build_args[@]}" -t pre_process simulation -- "${CASE_ARGS[@]}" \
     2>&1 | tee "$LOG"
 mfc_status=${PIPESTATUS[0]}
 set -e
@@ -246,33 +448,76 @@ STOP_STEP="$(python3 "$CASE_DIR/case.py" "${CASE_ARGS[@]}" | \
 SAVE_EVERY="$(python3 "$CASE_DIR/case.py" "${CASE_ARGS[@]}" | \
     python3 -c 'import json,sys; print(json.load(sys.stdin)["t_step_save"])')"
 FINAL_RESTART="$CASE_DIR/restart_data/lustre_${STOP_STEP}.dat"
-FINAL_SILO="$CASE_DIR/silo_hdf5/root/collection_${STOP_STEP}.silo"
 [[ -s "$FINAL_RESTART" ]] || { echo "ERROR: missing $FINAL_RESTART" >&2; exit 41; }
-[[ -s "$FINAL_SILO" ]] || { echo "ERROR: missing $FINAL_SILO" >&2; exit 42; }
 
 restart_count="$(find "$CASE_DIR/restart_data" -maxdepth 1 -type f -name 'lustre_[0-9]*.dat' | wc -l)"
-silo_count="$(find "$CASE_DIR/silo_hdf5/root" -maxdepth 1 -type f -name 'collection_*.silo' | wc -l)"
-if (( restart_count < EXPECTED_SNAPSHOTS || silo_count < EXPECTED_SNAPSHOTS )); then
-    echo "ERROR: expected $EXPECTED_SNAPSHOTS states; restart=$restart_count silo=$silo_count" >&2
+if (( restart_count < EXPECTED_SNAPSHOTS )); then
+    echo "ERROR: expected $EXPECTED_SNAPSHOTS restart states; found $restart_count" >&2
     exit 43
 fi
 
+post_build_args=(--no-build)
+if [[ "$BUILD_MODE" == scratch ]]; then
+    # The first smoke call compiled only pre_process and simulation.  Permit
+    # one incremental build of post_process; production then reuses it.
+    post_build_args=()
+fi
+set +e
+./mfc.sh run "$CASE_DIR/case.py" -n 1 -j 1 --mpi --no-gpu --binary mpirun \
+    "${post_build_args[@]}" -t post_process -- "${CASE_ARGS[@]}" --format silo \
+    2>&1 | tee "$CASE_DIR/post-serial-silo.log"
+silo_status=${PIPESTATUS[0]}
+set -e
+
+silo_complete=1
+for (( step=0; step<=STOP_STEP; step+=SAVE_EVERY )); do
+    [[ -s "$CASE_DIR/silo_hdf5/root/collection_${step}.silo" ]] || silo_complete=0
+done
+leaf_count=0
+if [[ -d "$CASE_DIR/silo_hdf5" ]]; then
+    leaf_count="$(find "$CASE_DIR/silo_hdf5" -mindepth 2 -type f -name '*.silo' ! -path '*/root/*' | wc -l)"
+fi
+(( leaf_count >= EXPECTED_SNAPSHOTS )) || silo_complete=0
+
+output_mode=silo
+if (( silo_status != 0 || silo_complete != 1 )); then
+    if [[ -d "$CASE_DIR/silo_hdf5" ]]; then
+        mv "$CASE_DIR/silo_hdf5" "$CASE_DIR/silo_hdf5_failed_serial"
+    fi
+    set +e
+    ./mfc.sh run "$CASE_DIR/case.py" -n 1 -j 1 --mpi --no-gpu --binary mpirun \
+        --no-build -t post_process -- "${CASE_ARGS[@]}" --format binary \
+        2>&1 | tee "$CASE_DIR/post-serial-binary.log"
+    binary_status=${PIPESTATUS[0]}
+    set -e
+    (( binary_status == 0 )) || {
+        echo "ERROR: both serial Silo and serial binary post-processing failed." >&2
+        exit "$binary_status"
+    }
+    output_mode=binary
+fi
+
 INVENTORY="$CASE_DIR/FIELD_INVENTORY.tsv"
-printf 'step\ttime\trestart_bytes\tsilo_bytes\n' >"$INVENTORY"
+printf 'step\ttime\trestart_bytes\tproduct\tproduct_bytes\n' >"$INVENTORY"
 DT="$(python3 "$CASE_DIR/case.py" "${CASE_ARGS[@]}" | \
     python3 -c 'import json,sys; print(json.load(sys.stdin)["dt"])')"
 for (( step=0; step<=STOP_STEP; step+=SAVE_EVERY )); do
     restart="$CASE_DIR/restart_data/lustre_${step}.dat"
-    silo="$CASE_DIR/silo_hdf5/root/collection_${step}.silo"
-    [[ -s "$restart" && -s "$silo" ]] || { echo "ERROR: incomplete state $step" >&2; exit 44; }
+    if [[ "$output_mode" == silo ]]; then
+        product="$CASE_DIR/silo_hdf5/root/collection_${step}.silo"
+    else
+        product="$(find "$CASE_DIR/binary" -type f -name "${step}.dat" -print -quit)"
+    fi
+    [[ -s "$restart" && -s "$product" ]] || { echo "ERROR: incomplete state $step" >&2; exit 44; }
     time_value="$(python3 -c "print(${step} * ${DT})")"
-    printf '%s\t%s\t%s\t%s\n' "$step" "$time_value" \
-        "$(stat -c %s "$restart")" "$(stat -c %s "$silo")" >>"$INVENTORY"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$step" "$time_value" \
+        "$(stat -c %s "$restart")" "$product" "$(stat -c %s "$product")" >>"$INVENTORY"
 done
 
-printf 'status=PASS\nmach=%s\ngrid=%s\nfinal_time=%s\nsnapshots=%s\nfinal_restart=%s\nfinal_silo=%s\n' \
+FINAL_PRODUCT="$(tail -n 1 "$INVENTORY" | cut -f4)"
+printf 'status=PASS\nmach=%s\ngrid=%s\nfinal_time=%s\nsnapshots=%s\npostprocess_mode=%s\nfinal_restart=%s\nfinal_product=%s\n' \
     "$MACH" "$GRID" "$(python3 -c "print(${STOP_STEP} * ${DT})")" \
-    "$EXPECTED_SNAPSHOTS" "$FINAL_RESTART" "$FINAL_SILO" | \
+    "$EXPECTED_SNAPSHOTS" "$output_mode" "$FINAL_RESTART" "$FINAL_PRODUCT" | \
     tee "$CASE_DIR/RUN_OK_MFC_EULER_CYLINDER.txt"
 SBATCH
 

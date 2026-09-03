@@ -63,6 +63,31 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertEqual(case["bc_x%beg"], -11)
         self.assertEqual(case["bc_x%end"], -12)
 
+    def test_binary_postprocess_mode_changes_only_the_output_format(self):
+        silo, _ = case_module.build_case(2.7, "f90", 3.0, 0.1, "silo")
+        binary, metadata = case_module.build_case(
+            2.7, "f90", 3.0, 0.1, "binary"
+        )
+        self.assertEqual(silo["format"], 1)
+        self.assertEqual(binary["format"], 2)
+        self.assertEqual(metadata["output_format"], "binary")
+        for key in silo:
+            if key != "format":
+                self.assertEqual(silo[key], binary[key])
+
+    def test_unity_launcher_has_read_only_postprocess_recovery(self):
+        launcher = (
+            ROOT
+            / "mfc_euler_cylinder"
+            / "unity_submit_euler_cylinder.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('RECOVER_CASE_DIR="${RECOVER_CASE_DIR:-}"', launcher)
+        self.assertIn("/scratch4/workspace/", launcher)
+        self.assertIn('ln -s "$source" "$target"', launcher)
+        self.assertIn('-n 1 -j 1', launcher)
+        self.assertIn('--format binary', launcher)
+        self.assertNotIn("-t pre_process simulation post_process", launcher)
+
     def test_mach3_normal_shock_reference(self):
         result = rh_module.normal_shock(3.0)
         self.assertAlmostEqual(result["rho2_over_rho1"], 27.0 / 7.0, places=12)

@@ -49,6 +49,7 @@ def build_case(
     grid_name: str,
     final_time: float,
     save_dt: float,
+    output_format: str = "silo",
 ) -> tuple[dict[str, object], dict[str, float | int | str]]:
     """Return an MFC case dictionary and deterministic run metadata."""
 
@@ -60,6 +61,8 @@ def build_case(
         raise ValueError("--final-time must be finite and positive")
     if not math.isfinite(save_dt) or save_dt <= 0.0 or save_dt > final_time:
         raise ValueError("--save-dt must be positive and no larger than --final-time")
+    if output_format not in {"silo", "binary"}:
+        raise ValueError("output_format must be 'silo' or 'binary'")
 
     grid = GRIDS[grid_name]
     dx = (grid.x_end - grid.x_beg) / (grid.m + 1)
@@ -121,7 +124,7 @@ def build_case(
         "patch_ib(1)%y_centroid": 0.0,
         "patch_ib(1)%radius": CYLINDER_RADIUS,
         "patch_ib(1)%slip": "T",
-        "format": 1,
+        "format": 1 if output_format == "silo" else 2,
         "precision": 2,
         "prim_vars_wrt": "T",
         "ib_state_wrt": "T",
@@ -164,6 +167,7 @@ def build_case(
         "requested_save_dt": save_dt,
         "actual_save_dt": actual_save_dt,
         "saved_states_including_initial": save_count + 1,
+        "output_format": output_format,
         "physics": "two-dimensional inviscid Euler; continuum; slip cylinder",
         "label_scope": "shock and background/other only; vortex is not ground truth",
     }
@@ -177,13 +181,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grid", choices=tuple(GRIDS), default="f90")
     parser.add_argument("--final-time", type=float, default=3.0)
     parser.add_argument("--save-dt", type=float, default=0.1)
+    parser.add_argument("--format", choices=("silo", "binary"), default="silo")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     try:
-        case, _ = build_case(args.mach, args.grid, args.final_time, args.save_dt)
+        case, _ = build_case(
+            args.mach, args.grid, args.final_time, args.save_dt, args.format
+        )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     print(json.dumps(case))
