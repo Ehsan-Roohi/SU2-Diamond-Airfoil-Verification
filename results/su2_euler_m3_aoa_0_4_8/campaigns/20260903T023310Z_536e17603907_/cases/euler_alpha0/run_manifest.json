@@ -1,0 +1,115 @@
+{
+  "case": "euler_alpha0",
+  "started_utc": "2026-09-03T02:33:26.758543+00:00",
+  "solver_executable": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+  "reference_solver": "SU2 v8.5.0 (Harrier)",
+  "execution": {
+    "mode": "OpenMP",
+    "workers": 16
+  },
+  "policy": "PRODUCTION_FAIL_CLOSED",
+  "expected_results_table": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-runner-20260903T023307Z/EXPECTED_RESULTS.csv",
+  "reference_status": "QUALIFIED_TEACHING_REFERENCE_NOT_GRID_BENCHMARK",
+  "stages": [
+    {
+      "config": "startup.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "startup.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023326Z_startup.log",
+      "history": "history_startup.csv",
+      "restart": "restart_startup.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    },
+    {
+      "config": "second_order.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "second_order.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023326Z_second_order.log",
+      "history": "history_second_order.csv",
+      "restart": "restart_second_order.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    }
+  ],
+  "metric_extractor_return_code": 0,
+  "metric_extractor_output": "Metrics: /scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha0/case_metrics.json\nupper fitted shock angle: 25.578914 deg\nAbsolute angle error: 0.032436 deg\nNormalized mirrored-density RMS error: 7.24031e-10\n",
+  "metrics_file": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha0/case_metrics.json",
+  "acceptance_checks": {
+    "angle_of_attack_deg": 0.0,
+    "initial_density_residual": -4.495295471,
+    "final_density_residual": -4.155272727,
+    "density_residual_drop_orders": -0.34002274400000054,
+    "residual_target": -10.0,
+    "residual_policy": "warning",
+    "residual_drop_min_orders": 0.0,
+    "force_window_required_samples": 200,
+    "force_peak_to_peak_limit_percent": 0.1,
+    "cl_peak_to_peak_absolute_limit_at_alpha0": 1e-07,
+    "force_statistics": {
+      "CL": {
+        "final": 2.842218214e-12,
+        "mean": 5.1002511217849994e-12,
+        "peak_to_peak": 3.516892127e-12,
+        "peak_to_peak_percent": 68.95527382912762,
+        "samples": 200,
+        "available_samples": 2000
+      },
+      "CD": {
+        "final": 0.02737208314,
+        "mean": 0.027364288603999996,
+        "peak_to_peak": 1.4928000000000857e-05,
+        "peak_to_peak_percent": 0.05455285250068129,
+        "samples": 200,
+        "available_samples": 2000
+      }
+    },
+    "reference_range_checks": {
+      "CL": {
+        "value": 5.1002511217849994e-12,
+        "minimum": -1e-06,
+        "maximum": 1e-06,
+        "passed": true
+      },
+      "CD": {
+        "value": 0.027364288603999996,
+        "minimum": 0.0272,
+        "maximum": 0.0276,
+        "passed": true
+      }
+    },
+    "postprocessing_metric_checks": {
+      "symmetry_error_rms": {
+        "value": 7.240311049806617e-10,
+        "maximum": 1e-06,
+        "passed": true
+      },
+      "shock_angle_error_deg": {
+        "value": 0.032436447844311544,
+        "maximum": 0.2,
+        "passed": true
+      }
+    },
+    "max_nonphysical_points": 0
+  },
+  "result": "QUALIFIED_PASS",
+  "warnings": [
+    "final density residual -4.15527 is above target -10",
+    "density-residual reduction -0.340023 orders is below configured minimum 0"
+  ],
+  "reference_note": "PASS means configured automated checks passed. It is not a published-reference match unless EXPECTED_RESULTS.csv says VERIFIED and supplies traceable ranges.",
+  "failures": [],
+  "finished_utc": "2026-09-03T02:35:13.307001+00:00"
+}

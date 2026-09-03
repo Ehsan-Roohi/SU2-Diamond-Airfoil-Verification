@@ -1,3 +1,3 @@
 # Latest published AoA campaign
 
-The Unity result publisher has not yet ingested a campaign into this branch.
+[20260903T023310Z_536e17603907_](campaigns/20260903T023310Z_536e17603907_/README.md)

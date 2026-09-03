@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "accepted": true,
+      "angle_deg": 0,
+      "case": "euler_alpha0",
+      "cd_mean": 0.027364288603999996,
+      "cd_peak_to_peak": 1.4928000000000857e-05,
+      "cd_std": 4.4981660266526835e-06,
+      "cl_mean": 5.1002511217849994e-12,
+      "cl_peak_to_peak": 3.516892127e-12,
+      "cl_std": 1.1080912574326846e-12,
+      "copied_evidence": [
+        "case_metrics.json",
+        "shock_ridge_upper.csv",
+        "run_manifest.json"
+      ],
+      "final_density_residual_log10": -4.155272727,
+      "history_rows": 2000,
+      "statistics_window": 200,
+      "status": "NUMERICAL_GATE_PASS",
+      "wrapper_result": "QUALIFIED_PASS",
+      "wrapper_return_code": 0
+    },
+    {
+      "accepted": true,
+      "angle_deg": 4,
+      "case": "euler_alpha4",
+      "cd_mean": 0.03488493442525,
+      "cd_peak_to_peak": 1.4893570000000522e-05,
+      "cd_std": 4.26803243305468e-06,
+      "cl_mean": 0.09807289626915,
+      "cl_peak_to_peak": 3.753466000000483e-05,
+      "cl_std": 1.0542263203582662e-05,
+      "copied_evidence": [
+        "case_metrics.json",
+        "shock_ridge_upper.csv",
+        "run_manifest.json"
+      ],
+      "final_density_residual_log10": -4.111638073,
+      "history_rows": 2000,
+      "statistics_window": 200,
+      "status": "NUMERICAL_GATE_PASS",
+      "wrapper_result": "QUALIFIED_PASS",
+      "wrapper_return_code": 0
+    },
+    {
+      "accepted": false,
+      "angle_deg": 8,
+      "case": "euler_alpha8",
+      "cd_mean": 0.05750682366285,
+      "cd_peak_to_peak": 2.337444000000133e-05,
+      "cd_std": 5.465379265187748e-06,
+      "cl_mean": 0.196905744923,
+      "cl_peak_to_peak": 9.010029999997893e-05,
+      "cl_std": 2.3959627883149152e-05,
+      "copied_evidence": [
+        "case_metrics.json",
+        "shock_ridge_lower.csv",
+        "run_manifest.json"
+      ],
+      "final_density_residual_log10": -4.006200898,
+      "history_rows": 2000,
+      "statistics_window": 200,
+      "status": "FIELD_RETAINED_ACCEPTANCE_UNKNOWN",
+      "wrapper_result": "FAIL",
+      "wrapper_return_code": null
+    }
+  ],
+  "dataset": "SU2 Euler Mach 3 sharp diamond airfoil AoA 0/4/8",
+  "grid_independence_claim": false,
+  "large_native_fields_committed_to_git": false,
+  "overall_status": "MIXED_OR_FAILED_GATE_FIELDS_RETAINED",
+  "source_campaign": "20260903T023310Z_536e17603907",
+  "statistics_window_max": 200
+}

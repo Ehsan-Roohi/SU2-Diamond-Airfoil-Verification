@@ -1,0 +1,87 @@
+{
+  "case": "euler_alpha8",
+  "started_utc": "2026-09-03T02:36:59.984239+00:00",
+  "solver_executable": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+  "reference_solver": "SU2 v8.5.0 (Harrier)",
+  "execution": {
+    "mode": "OpenMP",
+    "workers": 16
+  },
+  "policy": "PRODUCTION_FAIL_CLOSED",
+  "expected_results_table": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-runner-20260903T023307Z/EXPECTED_RESULTS.csv",
+  "reference_status": "TEACHING_CONFIG_NOT_YET_REFERENCE_VERIFIED",
+  "stages": [
+    {
+      "config": "startup.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "startup.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023659Z_startup.log",
+      "history": "history_startup.csv",
+      "restart": "restart_startup.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    },
+    {
+      "config": "second_order.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "second_order.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023659Z_second_order.log",
+      "history": "history_second_order.csv",
+      "restart": "restart_second_order.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    }
+  ],
+  "acceptance_checks": {
+    "angle_of_attack_deg": 8.0,
+    "initial_density_residual": -4.259319348,
+    "final_density_residual": -4.006200898,
+    "density_residual_drop_orders": -0.25311844999999966,
+    "residual_target": -10.0,
+    "residual_policy": "enforce",
+    "residual_drop_min_orders": null,
+    "force_window_required_samples": 200,
+    "force_peak_to_peak_limit_percent": 1.0,
+    "cl_peak_to_peak_absolute_limit_at_alpha0": null,
+    "force_statistics": {
+      "CL": {
+        "final": 0.1968555992,
+        "mean": 0.196905744923,
+        "peak_to_peak": 9.010029999997893e-05,
+        "peak_to_peak_percent": 0.04575808594879375,
+        "samples": 200,
+        "available_samples": 2000
+      },
+      "CD": {
+        "final": 0.05751772701,
+        "mean": 0.05750682366285,
+        "peak_to_peak": 2.337444000000133e-05,
+        "peak_to_peak_percent": 0.04064637639707,
+        "samples": 200,
+        "available_samples": 2000
+      }
+    },
+    "reference_range_checks": {},
+    "postprocessing_metric_checks": {},
+    "max_nonphysical_points": 0
+  },
+  "result": "FAIL",
+  "warnings": [],
+  "reference_note": "PASS means configured automated checks passed. It is not a published-reference match unless EXPECTED_RESULTS.csv says VERIFIED and supplies traceable ranges.",
+  "failures": [
+    "final density residual -4.0062 is above target -10"
+  ],
+  "finished_utc": "2026-09-03T02:38:45.055440+00:00"
+}

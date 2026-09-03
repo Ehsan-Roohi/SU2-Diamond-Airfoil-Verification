@@ -1,0 +1,7 @@
+dataset=SU2 Euler Mach 3 alpha 0,4,8
+started_utc=2026-09-03T02:33:26Z
+job_id=63951312
+host=uri-cpu002
+threads=16
+solver=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD
+run_root=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907

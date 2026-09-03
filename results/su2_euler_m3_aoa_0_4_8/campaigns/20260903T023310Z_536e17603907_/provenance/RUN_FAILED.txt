@@ -1,0 +1,4 @@
+FAILED
+utc=2026-09-03T02:38:45Z
+exit_code=2
+job_id=63951312

@@ -1,0 +1,29 @@
+{
+  "shock_angles_deg": {
+    "upper": 27.435148821807985
+  },
+  "shock_fit_rms": {
+    "upper": 0.001215043874996433
+  },
+  "shock_extraction": {
+    "upper": {
+      "source": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha4/restart_second_order.csv",
+      "mesh": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/meshes/diamond_euler_sharp_medium_720x181.su2",
+      "method": "native-point least-squares density gradient; binned ridge; weighted line through origin",
+      "display_filter_used": false,
+      "fit_window_x_over_c": [
+        0.03,
+        0.1
+      ],
+      "angle_window_deg": [
+        12.0,
+        60.0
+      ],
+      "ridge_csv": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha4/shock_ridge_upper.csv"
+    }
+  },
+  "shock_angle_errors_deg": {
+    "upper": 1.080728821807984
+  },
+  "shock_angle_error_deg": 1.080728821807984
+}

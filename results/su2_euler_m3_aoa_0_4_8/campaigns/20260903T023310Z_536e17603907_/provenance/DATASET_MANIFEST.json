@@ -1,0 +1,478 @@
+{
+  "angles_deg": [
+    0,
+    4,
+    8
+  ],
+  "capture_complete": true,
+  "cases": {
+    "euler_alpha0": {
+      "angle_deg": 0,
+      "empty": [],
+      "final_history": {
+        "cd_last_window_mean": 0.027364288603999996,
+        "cd_last_window_peak_to_peak": 1.4928000000000857e-05,
+        "cl_last_window_mean": 5.1002511217849994e-12,
+        "cl_last_window_peak_to_peak": 3.516892127e-12,
+        "final_density_residual": -4.155272727,
+        "rows": 2000
+      },
+      "final_restart": {
+        "columns": [
+          "PointID",
+          "x",
+          "y",
+          "Density",
+          "Momentum_x",
+          "Momentum_y",
+          "Energy"
+        ],
+        "minimum_density": 0.2132910861656897,
+        "minimum_pressure": 0.43320394597005496,
+        "nonfinite_rows": 0,
+        "nonpositive_rows": 0,
+        "rows": 130320
+      },
+      "final_volume": {
+        "size_bytes": 10542437,
+        "vtk_header_present": true
+      },
+      "missing": [],
+      "wrapper_result": "QUALIFIED_PASS",
+      "wrapper_return_code": 0
+    },
+    "euler_alpha4": {
+      "angle_deg": 4,
+      "empty": [],
+      "final_history": {
+        "cd_last_window_mean": 0.03488493442525,
+        "cd_last_window_peak_to_peak": 1.4893570000000522e-05,
+        "cl_last_window_mean": 0.09807289626915,
+        "cl_last_window_peak_to_peak": 3.753466000000483e-05,
+        "final_density_residual": -4.111638073,
+        "rows": 2000
+      },
+      "final_restart": {
+        "columns": [
+          "PointID",
+          "x",
+          "y",
+          "Density",
+          "Momentum_x",
+          "Momentum_y",
+          "Energy"
+        ],
+        "minimum_density": 0.1877337827518545,
+        "minimum_pressure": 0.3382262864771355,
+        "nonfinite_rows": 0,
+        "nonpositive_rows": 0,
+        "rows": 130320
+      },
+      "final_volume": {
+        "size_bytes": 10542437,
+        "vtk_header_present": true
+      },
+      "missing": [],
+      "wrapper_result": "QUALIFIED_PASS",
+      "wrapper_return_code": 0
+    },
+    "euler_alpha8": {
+      "angle_deg": 8,
+      "empty": [],
+      "final_history": {
+        "cd_last_window_mean": 0.05750682366285,
+        "cd_last_window_peak_to_peak": 2.337444000000133e-05,
+        "cl_last_window_mean": 0.196905744923,
+        "cl_last_window_peak_to_peak": 9.010029999997893e-05,
+        "final_density_residual": -4.006200898,
+        "rows": 2000
+      },
+      "final_restart": {
+        "columns": [
+          "PointID",
+          "x",
+          "y",
+          "Density",
+          "Momentum_x",
+          "Momentum_y",
+          "Energy"
+        ],
+        "minimum_density": 0.187634553079046,
+        "minimum_pressure": 0.2385862037622185,
+        "nonfinite_rows": 0,
+        "nonpositive_rows": 0,
+        "rows": 130320
+      },
+      "final_volume": {
+        "size_bytes": 10542437,
+        "vtk_header_present": true
+      },
+      "missing": [],
+      "wrapper_result": "FAIL"
+    }
+  },
+  "created_utc": "2026-09-03T09:30:48.506308+00:00",
+  "dataset": "SU2 Euler Mach 3 diamond airfoil alpha=0,4,8 full native capture",
+  "files": [
+    {
+      "path": "RUN_FAILED.txt",
+      "sha256": "f7447721b70f436eaf4b60abd19682c8dd82591cbe0fe7f39e718b03aa8e2770",
+      "size_bytes": 60
+    },
+    {
+      "path": "RUN_STARTED.txt",
+      "sha256": "9715d94322845221402e30d52c78fe5dc62ff4d8b03c75822ccdef316e498d97",
+      "size_bytes": 339
+    },
+    {
+      "path": "SUBMISSION.txt",
+      "sha256": "8c45afc3fa321ef567c65e2381080e4395900a53a8ec484694ccac92f113b2b1",
+      "size_bytes": 326
+    },
+    {
+      "path": "cases/euler_alpha0/case_metrics.json",
+      "sha256": "3eb7f173745364ef824af3f5234fd60c62fc274b568eab81b68ac877a461866b",
+      "size_bytes": 1308
+    },
+    {
+      "path": "cases/euler_alpha0/flow_second_order.vtu",
+      "sha256": "5ee90c799fc723178521a40b87609d3130e4c38c89ad1889a28a5ce5368b873b",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha0/flow_startup.vtu",
+      "sha256": "ed433c7bfbf5577bd4a7450ba2209cd16201841bdfca770e455bcfe2b23b15cf",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha0/history_second_order.csv",
+      "sha256": "65e22aa2e4055a8769abf19b05058f0fbf3f5ca3ef1d624398f2eb94bce4c9b3",
+      "size_bytes": 1026513
+    },
+    {
+      "path": "cases/euler_alpha0/history_startup.csv",
+      "sha256": "1b69d21fdfb5ea9115a510c9241f709eb48f389669eec60881bff905a030571e",
+      "size_bytes": 308313
+    },
+    {
+      "path": "cases/euler_alpha0/logs/20260903T023326Z_run_manifest.json",
+      "sha256": "843a754b0dab2acb9ff4a37fcb045ba59a38791d70fdafd66e0cdce3027b279d",
+      "size_bytes": 4246
+    },
+    {
+      "path": "cases/euler_alpha0/logs/20260903T023326Z_second_order.log",
+      "sha256": "8fdd863ce6caa0193578e6e92e8de8583bd3ce424501acc5b3740e4674e9653a",
+      "size_bytes": 20187
+    },
+    {
+      "path": "cases/euler_alpha0/logs/20260903T023326Z_startup.log",
+      "sha256": "3b53585a5bb2bb28bd06d8062bdd36b546f19c581c4cb41c950fbd0fa9b3197f",
+      "size_bytes": 14683
+    },
+    {
+      "path": "cases/euler_alpha0/restart_second_order.csv",
+      "sha256": "2bdf74dbf41e6d0d38910fba6cae36797ace966dd3d3860db76f0eab261c5891",
+      "size_bytes": 18948724
+    },
+    {
+      "path": "cases/euler_alpha0/restart_startup.csv",
+      "sha256": "897f0da35601f5e0f9b7a8878d5c50226030cb6c9f1fe621baeb2d18087c8ef4",
+      "size_bytes": 18948973
+    },
+    {
+      "path": "cases/euler_alpha0/second_order.cfg",
+      "sha256": "80f77ba07ccae9b0b804bc1ad163a77b4c00325927f34d46537ad9531c1db103",
+      "size_bytes": 1706
+    },
+    {
+      "path": "cases/euler_alpha0/shock_ridge_upper.csv",
+      "sha256": "786fc49a751c2a2b6b0dcb921fea9f64b99915a53527549039960979fcd0e86d",
+      "size_bytes": 2374
+    },
+    {
+      "path": "cases/euler_alpha0/startup.cfg",
+      "sha256": "84d61219dcd316fe4df3dd240ce4e124499b050f0b677273e42a6fc1bc51b02b",
+      "size_bytes": 1583
+    },
+    {
+      "path": "cases/euler_alpha0/surface_flow_second_order.csv",
+      "sha256": "c7e51d17443e3a2c1cb776e893b504aad97deddb50a3366e2b4efde035b2f15e",
+      "size_bytes": 102912
+    },
+    {
+      "path": "cases/euler_alpha0/surface_flow_second_order.vtu",
+      "sha256": "b6e4d85f62b7e2710d4798ab99a7e268d5469937366b0ab962ed10af4771c9ca",
+      "size_bytes": 54168
+    },
+    {
+      "path": "cases/euler_alpha0/surface_flow_startup.csv",
+      "sha256": "6aedc3ab0d8f9dbf91f7c2d288437f07d5f05533bbbcc7c55761d50f2b6a353a",
+      "size_bytes": 102912
+    },
+    {
+      "path": "cases/euler_alpha0/surface_flow_startup.vtu",
+      "sha256": "305e0be50c568fc1ef1408eb60a7790cb35fb90fbb7ac2e455f69c185caa3415",
+      "size_bytes": 54168
+    },
+    {
+      "path": "cases/euler_alpha4/case_metrics.json",
+      "sha256": "9b266b8b423ecadba71c325efdbcc331738777177c08da10daee3e3a8c120657",
+      "size_bytes": 1086
+    },
+    {
+      "path": "cases/euler_alpha4/flow_second_order.vtu",
+      "sha256": "149e5fbc0c5052adfb9a265d8115c5eb0c60b0c06f7163faa2b0fa4c798925a6",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha4/flow_startup.vtu",
+      "sha256": "abbd47704ddc0316e0874a3795dbd4cd3864f8a68f2ac55012f425b1400c3506",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha4/history_second_order.csv",
+      "sha256": "26e86841722774330bd78be08981ccdb815eb4f25e23268503d56f042bb7b99d",
+      "size_bytes": 1026513
+    },
+    {
+      "path": "cases/euler_alpha4/history_startup.csv",
+      "sha256": "8ecd5b014bee0f780e448f9c295a83c581859b4640f3061683e947f7c9838571",
+      "size_bytes": 308313
+    },
+    {
+      "path": "cases/euler_alpha4/logs/20260903T023513Z_run_manifest.json",
+      "sha256": "7410247fa033786edada81c83801938baa93b34fff7dd58a7231cb03d11bc389",
+      "size_bytes": 3970
+    },
+    {
+      "path": "cases/euler_alpha4/logs/20260903T023513Z_second_order.log",
+      "sha256": "52d8538c5ba282e42a420c2c4e306d3ec0b673466d964752838d90b84c5631c3",
+      "size_bytes": 20187
+    },
+    {
+      "path": "cases/euler_alpha4/logs/20260903T023513Z_startup.log",
+      "sha256": "807374fa20728275dab2e07fe2e774d44f6177bb871d8c2bc0b0b3dc24ffc2e0",
+      "size_bytes": 14683
+    },
+    {
+      "path": "cases/euler_alpha4/restart_second_order.csv",
+      "sha256": "38526b7171aec63814dc85b44db806bcbeb805b210772e66290952fc78a9b3b6",
+      "size_bytes": 18911284
+    },
+    {
+      "path": "cases/euler_alpha4/restart_startup.csv",
+      "sha256": "d8c68827c2628ad0e1c450bb122bc8bcfdafc9d98c5380f6edabef10b419fd79",
+      "size_bytes": 18891270
+    },
+    {
+      "path": "cases/euler_alpha4/second_order.cfg",
+      "sha256": "0d6d799a0106878fa04e89752b2d20920c43f164774d3b2833d1d1e40fe9bda5",
+      "size_bytes": 1700
+    },
+    {
+      "path": "cases/euler_alpha4/shock_ridge_upper.csv",
+      "sha256": "dc997d4bcd4516193051fb7929c3e4f5379b9ae3590eaeb910f984567fdb88a5",
+      "size_bytes": 2384
+    },
+    {
+      "path": "cases/euler_alpha4/startup.cfg",
+      "sha256": "dba47249cf4ff03b9301220cd27e5b2061c6e9947981c84e05ecb851690f15d1",
+      "size_bytes": 1583
+    },
+    {
+      "path": "cases/euler_alpha4/surface_flow_second_order.csv",
+      "sha256": "664e210a374add4c88c5c003ee721065411d8a31b79d02451a5b0b9843e8efe5",
+      "size_bytes": 102911
+    },
+    {
+      "path": "cases/euler_alpha4/surface_flow_second_order.vtu",
+      "sha256": "8fa98afc816df664bce82e1cc4a508e303543943406b74fa60acce38f8c8b746",
+      "size_bytes": 54168
+    },
+    {
+      "path": "cases/euler_alpha4/surface_flow_startup.csv",
+      "sha256": "b5dc064115f1ce5fb4f4515aff6c908a1eb8421b21f98145b60180f171f83171",
+      "size_bytes": 102911
+    },
+    {
+      "path": "cases/euler_alpha4/surface_flow_startup.vtu",
+      "sha256": "dc4b84cf5500828a26a5efd7e7c3d0bc2b7d93535cd468a1e176d1c910066872",
+      "size_bytes": 54168
+    },
+    {
+      "path": "cases/euler_alpha8/case_metrics.json",
+      "sha256": "b1fef5f8828a1521fc8b8f5b384a66df81b9750b9c636c8fab54747762411e8e",
+      "size_bytes": 978
+    },
+    {
+      "path": "cases/euler_alpha8/flow_second_order.vtu",
+      "sha256": "0f578d818a08c53d72f299514a689f801c8f66c712afa8e1cad48a19eeca2058",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha8/flow_startup.vtu",
+      "sha256": "df49ac805ad26acffa1183a352b5679050b9344b8f13047baa6c005b9c40e4f8",
+      "size_bytes": 10542437
+    },
+    {
+      "path": "cases/euler_alpha8/history_second_order.csv",
+      "sha256": "9e208ca86e9fa5485c86eb29a147c56f9b2948355dbcef1a8538b3ff90e02768",
+      "size_bytes": 1026513
+    },
+    {
+      "path": "cases/euler_alpha8/history_startup.csv",
+      "sha256": "7a27dcfb5c1b4b369a52260640604501fe846d45994cfdaead2a479db31888bc",
+      "size_bytes": 308313
+    },
+    {
+      "path": "cases/euler_alpha8/logs/20260903T023659Z_run_manifest.json",
+      "sha256": "97b31788afb1481aba2d20d6e88d294ad6cee0c253a490def69e6864cf97f2b3",
+      "size_bytes": 3065
+    },
+    {
+      "path": "cases/euler_alpha8/logs/20260903T023659Z_second_order.log",
+      "sha256": "d8222a106b4f6f8c7441addcc9c5d9459143b21cfc4b77b8e14d0b0736b31afa",
+      "size_bytes": 20187
+    },
+    {
+      "path": "cases/euler_alpha8/logs/20260903T023659Z_startup.log",
+      "sha256": "202a95c9530075a4c69516d9ee79faa359c4b54dbbd9c95fa636ae6ff049e3d1",
+      "size_bytes": 14683
+    },
+    {
+      "path": "cases/euler_alpha8/restart_second_order.csv",
+      "sha256": "1675c74e2e64fb1f278f1a2a4d6467be5fd63ad69b4a23a0bdf49334c08f9aef",
+      "size_bytes": 18910387
+    },
+    {
+      "path": "cases/euler_alpha8/restart_startup.csv",
+      "sha256": "ccc3ffe20d0e5bb5272109d520ced09be24565404395a9a3d09b289df0ae66e3",
+      "size_bytes": 18890357
+    },
+    {
+      "path": "cases/euler_alpha8/second_order.cfg",
+      "sha256": "4f137a166d0bc960bb32c3e6282849b90890eb542754df1baccac074b64dccb8",
+      "size_bytes": 1700
+    },
+    {
+      "path": "cases/euler_alpha8/shock_ridge_lower.csv",
+      "sha256": "58efdcd7b39be69f748b26b716b36cdb8edccefcee43dcfbf517543111428984",
+      "size_bytes": 2350
+    },
+    {
+      "path": "cases/euler_alpha8/startup.cfg",
+      "sha256": "a2dfcb1da3d219dd0fb35f69793b5ceaf5fde2a706a6f4c98c2f58fb07411d59",
+      "size_bytes": 1583
+    },
+    {
+      "path": "cases/euler_alpha8/surface_flow_second_order.csv",
+      "sha256": "660aa00199d7f5bda5c9b328751fcc6e0328a050e938f96dd0b88f3efd0d07c5",
+      "size_bytes": 102911
+    },
+    {
+      "path": "cases/euler_alpha8/surface_flow_second_order.vtu",
+      "sha256": "9401aa399634cf6aabb584213879ba1627d603f5229a0b1384cb4dc3fa601b74",
+      "size_bytes": 54168
+    },
+    {
+      "path": "cases/euler_alpha8/surface_flow_startup.csv",
+      "sha256": "21585cfd9d063f48bcb0f8d9976a3a6e943713eff7da2ca872f893ef2961a3b6",
+      "size_bytes": 102911
+    },
+    {
+      "path": "cases/euler_alpha8/surface_flow_startup.vtu",
+      "sha256": "215840f415bf2a9ca6f5f0e582b02e3fb9087218bcb2f5ecdbc23997dd0eb017",
+      "size_bytes": 54168
+    },
+    {
+      "path": "meshes/diamond_euler_sharp_medium_720x181.su2",
+      "sha256": "b956f4c256ab92a4f66c00f4d7ac45b2a14a3511d6577bbb584ad794543d1b2e",
+      "size_bytes": 11157004
+    },
+    {
+      "path": "provenance/EXPECTED_RESULTS.csv",
+      "sha256": "3d4ec1fbf8eef9fb5f595645057848d9eb29b9f09a0465f132f09e53a76e5f00",
+      "size_bytes": 5753
+    },
+    {
+      "path": "provenance/SU2_CFD.sha256.txt",
+      "sha256": "fe50da41008baa3e29053d801bf986f4b555df1798781c296e7ddb6a6a4aec86",
+      "size_bytes": 163
+    },
+    {
+      "path": "provenance/SU2_CFD_help.txt",
+      "sha256": "38a333541b1c24b1c31a848f7f70187663e6506cc5a87b94576ed4c3f987f4e9",
+      "size_bytes": 587
+    },
+    {
+      "path": "provenance/extract_wave_metrics.py",
+      "sha256": "6a453ccaf6ab9c9526924b1a050295f1f4b8b16f2a60d3283382b44ce8606fd6",
+      "size_bytes": 18171
+    },
+    {
+      "path": "provenance/package_euler_a048_full.py",
+      "sha256": "31b8b35598c4bc543d147c5cbfa8a97023050c80670dde026cbbe14c01a72951",
+      "size_bytes": 13969
+    },
+    {
+      "path": "provenance/python_version.txt",
+      "sha256": "435ee883212b189a41d79e835ac3e6755df994975bb40932ae1b81195317b9b6",
+      "size_bytes": 14
+    },
+    {
+      "path": "provenance/repo_commit.txt",
+      "sha256": "5f3493613e27faa815b4f11701118b6885e1a5790c264b52ba04235bde67d2ad",
+      "size_bytes": 41
+    },
+    {
+      "path": "provenance/repo_status.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "provenance/run_case.py",
+      "sha256": "3877ef70a388d4b04fd1a02201709eab7ff4ff2d387cc3c85c14678b25e85f75",
+      "size_bytes": 29578
+    },
+    {
+      "path": "provenance/system.txt",
+      "sha256": "f609d234041efe443d61fb23410735fc972139a1192c302c01aa1523fed8c006",
+      "size_bytes": 127
+    },
+    {
+      "path": "status/euler_alpha0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size_bytes": 2
+    },
+    {
+      "path": "status/euler_alpha0_wrapper.log",
+      "sha256": "f9894862d31cf0dc9c02afcb16f8326f38b38fabdea1be7206851e20672db0ad",
+      "size_bytes": 35430
+    },
+    {
+      "path": "status/euler_alpha4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size_bytes": 2
+    },
+    {
+      "path": "status/euler_alpha4_wrapper.log",
+      "sha256": "3d1e2ad05d2744ca32c7c7bfd2609435113f43d4267466a66b0da2e1e2df4356",
+      "size_bytes": 35301
+    },
+    {
+      "path": "status/euler_alpha8_wrapper.log",
+      "sha256": "f5c199f3aefe2071bca6a2ce0425a10e24af38e3e9b0e28af69564ee6aa6348b",
+      "size_bytes": 34861
+    }
+  ],
+  "intended_use": "shock-field inspection, segmentation, and reproducible teaching runs",
+  "mach": 3.0,
+  "mesh": "meshes/diamond_euler_sharp_medium_720x181.su2",
+  "mesh_family": "common sharp Euler O-grid 720x181",
+  "mesh_points": 130320,
+  "science_qa_note": "Raw capture is complete; inspect per-case wrapper results before scientific use.",
+  "science_qa_passed": false,
+  "scope": "New common-topology full-field capture for shock-detection/ML use; not the unavailable refined-triangular Appendix validation archive.",
+  "slurm_job_id": "63951312",
+  "solver_family": "SU2 v8.5.0 Euler, HLLC, second-order MUSCL/Venkatakrishnan"
+}

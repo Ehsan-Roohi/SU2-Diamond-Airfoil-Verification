@@ -1,0 +1,109 @@
+{
+  "case": "euler_alpha4",
+  "started_utc": "2026-09-03T02:35:13.552619+00:00",
+  "solver_executable": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+  "reference_solver": "SU2 v8.5.0 (Harrier)",
+  "execution": {
+    "mode": "OpenMP",
+    "workers": 16
+  },
+  "policy": "PRODUCTION_FAIL_CLOSED",
+  "expected_results_table": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-runner-20260903T023307Z/EXPECTED_RESULTS.csv",
+  "reference_status": "QUALIFIED_TEACHING_REFERENCE_NOT_GRID_BENCHMARK",
+  "stages": [
+    {
+      "config": "startup.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "startup.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023513Z_startup.log",
+      "history": "history_startup.csv",
+      "restart": "restart_startup.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    },
+    {
+      "config": "second_order.cfg",
+      "command": [
+        "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/software/su2-8.5.0-omp/bin/SU2_CFD",
+        "-t",
+        "16",
+        "second_order.cfg"
+      ],
+      "return_code": 0,
+      "log": "logs/20260903T023513Z_second_order.log",
+      "history": "history_second_order.csv",
+      "restart": "restart_second_order.csv",
+      "nonphysical_points_max_reported": 0,
+      "nonphysical_reconstructed_states_max_reported": 0,
+      "nonphysical_log_lines": []
+    }
+  ],
+  "metric_extractor_return_code": 0,
+  "metric_extractor_output": "Metrics: /scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha4/case_metrics.json\nupper fitted shock angle: 27.435149 deg\nAbsolute angle error: 1.080729 deg\n",
+  "metrics_file": "/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/su2-a048-data/runs/euler_a048_full/20260903T023310Z_536e17603907/cases/euler_alpha4/case_metrics.json",
+  "acceptance_checks": {
+    "angle_of_attack_deg": 4.0,
+    "initial_density_residual": -4.40866115,
+    "final_density_residual": -4.111638073,
+    "density_residual_drop_orders": -0.2970230770000004,
+    "residual_target": -10.0,
+    "residual_policy": "warning",
+    "residual_drop_min_orders": null,
+    "force_window_required_samples": 200,
+    "force_peak_to_peak_limit_percent": 1.0,
+    "cl_peak_to_peak_absolute_limit_at_alpha0": null,
+    "force_statistics": {
+      "CL": {
+        "final": 0.09805344172,
+        "mean": 0.09807289626915,
+        "peak_to_peak": 3.753466000000483e-05,
+        "peak_to_peak_percent": 0.038272205092215475,
+        "samples": 200,
+        "available_samples": 2000
+      },
+      "CD": {
+        "final": 0.03489187435,
+        "mean": 0.03488493442525,
+        "peak_to_peak": 1.4893570000000522e-05,
+        "peak_to_peak_percent": 0.042693415496921315,
+        "samples": 200,
+        "available_samples": 2000
+      }
+    },
+    "reference_range_checks": {
+      "CL": {
+        "value": 0.09807289626915,
+        "minimum": 0.0978,
+        "maximum": 0.0984,
+        "passed": true
+      },
+      "CD": {
+        "value": 0.03488493442525,
+        "minimum": 0.0346,
+        "maximum": 0.0351,
+        "passed": true
+      }
+    },
+    "postprocessing_metric_checks": {
+      "shock_angle_error_deg": {
+        "value": 1.080728821807984,
+        "maximum": 1.25,
+        "passed": true
+      }
+    },
+    "max_nonphysical_points": 0
+  },
+  "result": "QUALIFIED_PASS",
+  "warnings": [
+    "final density residual -4.11164 is above target -10"
+  ],
+  "reference_note": "PASS means configured automated checks passed. It is not a published-reference match unless EXPECTED_RESULTS.csv says VERIFIED and supplies traceable ranges.",
+  "failures": [],
+  "finished_utc": "2026-09-03T02:36:59.761466+00:00"
+}
