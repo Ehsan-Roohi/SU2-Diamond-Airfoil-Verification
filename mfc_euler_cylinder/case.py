@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""MFC 2-D Euler flow over a circular cylinder.
+"""MFC 2-D compressible flow over a circular cylinder.
 
-The case is a shock-only validation geometry.  It deliberately uses a slip
-immersed boundary and no viscosity; consequently no Reynolds number is
-defined and wake vorticity must not be interpreted as viscous vortex shedding.
+The default remains the published Euler/slip shock-only case.  Supplying a
+positive Reynolds number enables a distinct viscous/no-slip mode intended for
+shock--wake development studies.  The two modes retain identical geometry,
+domain, numerics, and nondimensional freestream definitions.
 """
 
 from __future__ import annotations
@@ -50,6 +51,7 @@ def build_case(
     final_time: float,
     save_dt: float,
     output_format: str = "silo",
+    reynolds: float = 0.0,
 ) -> tuple[dict[str, object], dict[str, float | int | str]]:
     """Return an MFC case dictionary and deterministic run metadata."""
 
@@ -63,6 +65,10 @@ def build_case(
         raise ValueError("--save-dt must be positive and no larger than --final-time")
     if output_format not in {"silo", "binary"}:
         raise ValueError("output_format must be 'silo' or 'binary'")
+    if not math.isfinite(reynolds) or reynolds < 0.0:
+        raise ValueError("--reynolds must be zero (Euler) or finite and positive")
+    if 0.0 < reynolds < 100.0:
+        raise ValueError("positive --reynolds must be at least 100")
 
     grid = GRIDS[grid_name]
     dx = (grid.x_end - grid.x_beg) / (grid.m + 1)
@@ -79,6 +85,7 @@ def build_case(
     stop_step = save_count * save_every
     actual_save_dt = save_every * dt
     actual_final_time = stop_step * dt
+    viscous = reynolds > 0.0
 
     case: dict[str, object] = {
         "run_time_info": "T",
@@ -102,7 +109,7 @@ def build_case(
         "time_stepper": 3,
         "weno_order": 5,
         "weno_eps": 1.0e-16,
-        "weno_Re_flux": "F",
+        "weno_Re_flux": "T" if viscous else "F",
         "weno_avg": "T",
         "avg_state": 2,
         "mapped_weno": "F",
@@ -110,7 +117,7 @@ def build_case(
         "mp_weno": "F",
         "riemann_solver": 2,
         "wave_speeds": 1,
-        "viscous": "F",
+        "viscous": "T" if viscous else "F",
         "fd_order": 4,
         "bc_x%beg": -11,
         "bc_x%end": -12,
@@ -123,7 +130,7 @@ def build_case(
         "patch_ib(1)%x_centroid": 0.0,
         "patch_ib(1)%y_centroid": 0.0,
         "patch_ib(1)%radius": CYLINDER_RADIUS,
-        "patch_ib(1)%slip": "T",
+        "patch_ib(1)%slip": "F" if viscous else "T",
         "format": 1 if output_format == "silo" else 2,
         "precision": 2,
         "prim_vars_wrt": "T",
@@ -152,6 +159,11 @@ def build_case(
         "fluid_pp(1)%gamma": 1.0 / (GAMMA - 1.0),
         "fluid_pp(1)%pi_inf": 0.0,
     }
+    if viscous:
+        # MFC's Reynolds parameter is the inverse nondimensional dynamic
+        # viscosity.  With rho_inf=D=a_inf=1, Re_D=rho*U*D/mu and therefore
+        # 1/mu = Re_D/U_inf.
+        case["fluid_pp(1)%Re(1)"] = reynolds / speed_inf
     metadata: dict[str, float | int | str] = {
         "mach": mach,
         "gamma": GAMMA,
@@ -168,8 +180,17 @@ def build_case(
         "actual_save_dt": actual_save_dt,
         "saved_states_including_initial": save_count + 1,
         "output_format": output_format,
-        "physics": "two-dimensional inviscid Euler; continuum; slip cylinder",
-        "label_scope": "shock and background/other only; vortex is not ground truth",
+        "reynolds_number": reynolds if viscous else "Euler",
+        "physics": (
+            "two-dimensional compressible Navier-Stokes; continuum; no-slip cylinder"
+            if viscous
+            else "two-dimensional inviscid Euler; continuum; slip cylinder"
+        ),
+        "label_scope": (
+            "shock, vortex-core proposals, and background/other; expert review required"
+            if viscous
+            else "shock and background/other only; vortex is not ground truth"
+        ),
     }
     return case, metadata
 
@@ -181,6 +202,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grid", choices=tuple(GRIDS), default="f90")
     parser.add_argument("--final-time", type=float, default=3.0)
     parser.add_argument("--save-dt", type=float, default=0.1)
+    parser.add_argument(
+        "--reynolds",
+        type=float,
+        default=0.0,
+        help="diameter Reynolds number; zero retains the Euler/slip case",
+    )
     parser.add_argument("--format", choices=("silo", "binary"), default="silo")
     return parser.parse_args()
 
@@ -189,7 +216,12 @@ def main() -> None:
     args = parse_args()
     try:
         case, _ = build_case(
-            args.mach, args.grid, args.final_time, args.save_dt, args.format
+            args.mach,
+            args.grid,
+            args.final_time,
+            args.save_dt,
+            args.format,
+            args.reynolds,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc

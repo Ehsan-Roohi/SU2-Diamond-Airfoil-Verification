@@ -6,6 +6,12 @@ vortex false-positive control.  It is not a finite-Reynolds-number cylinder
 wake case: viscosity is disabled, the immersed wall is slip, and no viscous
 vortex-shedding ground truth is claimed.
 
+The same case file and launcher also provide an explicit viscous/no-slip mode
+when `REYNOLDS` is positive.  In that mode `fluid_pp(1)%Re(1)=Re_D/U_inf`,
+`viscous=T`, `weno_Re_flux=T`, and the immersed cylinder is no-slip.  These
+runs are intended as fixed-grid shock/wake ML datasets; without a wall-normal
+resolution study they are not quantitative boundary-layer or force validation.
+
 No validated solution field is committed here.  The superficially similar
 public `tbellosta/Mach3-cylinder` repository supplies an old SU2 configuration
 but not the referenced final mesh/restart solution, so its pictures are not
@@ -86,6 +92,25 @@ MACH=3.0 GRID=f180 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roo
 Mach 3.5 supplies a second direct experimental anchor and Mach 2.0 is a weaker
 shock generalization case; both remain optional until the Mach-2.7 grid study
 passes.
+
+## Fixed-grid viscous/no-slip Reynolds sweep
+
+Run the Mach-2.7 `f180` pilot at `Re_D=10^4` first.  Build and all outputs
+should be placed on Unity scratch when the project filesystem is full:
+
+```bash
+MFC_SOURCE_ROOT=/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification/third_party/MFC-0c9a1d43 \
+MFC_CYL_ROOT=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/MFC-0c9a1d43-viscous-cylinder-v1 \
+DATA_ROOT=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_viscous_cylinder \
+MACH=2.7 REYNOLDS=10000 GRID=f180 FINAL_TIME=8 SAVE_DT=0.1 \
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_euler_cylinder.sh)
+```
+
+Only after the pilot is numerically physical and displays a developed wake
+should the identical fixed-grid runs at `REYNOLDS=50000` and
+`REYNOLDS=100000` be submitted.  `Re_D=10^6` is intentionally excluded from
+the core sweep because `f180` does not resolve its near-wall layer; it may be
+retained only as a declared under-resolved adverse test.
 
 ## Files to return for analysis
 

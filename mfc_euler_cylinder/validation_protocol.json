@@ -11,6 +11,17 @@
     "reynolds_note": "Euler has no viscosity and no finite Reynolds-number parameter. Do not report this case as Re=1e4--1e5.",
     "vortex_note": "No viscous vortex-shedding ground truth is claimed. Vorticity output is retained only to audit neural false positives."
   },
+  "viscous_extension": {
+    "equations": "two-dimensional compressible Navier-Stokes",
+    "wall": "no-slip immersed circular cylinder",
+    "mach": 2.7,
+    "fixed_grid": "f180",
+    "core_reynolds_numbers": [10000, 50000, 100000],
+    "optional_adverse_reynolds_number": 1000000,
+    "purpose": "shock-plus-wake ML generalization and temporal vortex proposals",
+    "limitation": "fixed-grid dataset; no boundary-layer, wall-force, DNS, or grid-convergence claim",
+    "stationarity": "use statistical wake/shock stationarity and periodic persistence, not a steady-flow gate"
+  },
   "run_order": [
     {"phase": "pilot", "mach": 2.7, "grid": "f90"},
     {"phase": "grid_convergence", "mach": 2.7, "grid": "f180"},

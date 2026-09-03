@@ -41,6 +41,24 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertFalse(any(key.startswith("fluid_pp(1)%Re") for key in case))
         self.assertIn("vortex is not ground truth", metadata["label_scope"])
 
+    def test_viscous_mode_is_no_slip_and_uses_requested_reynolds_number(self):
+        case, metadata = case_module.build_case(
+            2.7, "f180", 8.0, 0.1, reynolds=1.0e4
+        )
+        self.assertEqual(case["model_eqns"], 2)
+        self.assertEqual(case["viscous"], "T")
+        self.assertEqual(case["weno_Re_flux"], "T")
+        self.assertEqual(case["patch_ib(1)%slip"], "F")
+        self.assertAlmostEqual(case["fluid_pp(1)%Re(1)"], 1.0e4 / 2.7)
+        self.assertEqual(metadata["reynolds_number"], 1.0e4)
+        self.assertIn("expert review required", metadata["label_scope"])
+
+    def test_reynolds_validation_rejects_ambiguous_small_values(self):
+        with self.assertRaises(ValueError):
+            case_module.build_case(2.7, "f90", 3.0, 0.1, reynolds=-1.0)
+        with self.assertRaises(ValueError):
+            case_module.build_case(2.7, "f90", 3.0, 0.1, reynolds=10.0)
+
     def test_scientific_grids_have_declared_cells_per_diameter(self):
         for name in ("f90", "f180", "f270"):
             case, metadata = case_module.build_case(3.0, name, 3.0, 0.1)
@@ -62,6 +80,27 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertEqual(case["patch_icpp(1)%vel(1)"], 3.0)
         self.assertEqual(case["bc_x%beg"], -11)
         self.assertEqual(case["bc_x%end"], -12)
+
+        raw_viscous = subprocess.check_output(
+            [
+                sys.executable,
+                str(CASE_PATH),
+                "--mach",
+                "2.7",
+                "--grid",
+                "f180",
+                "--final-time",
+                "8",
+                "--save-dt",
+                "0.1",
+                "--reynolds",
+                "50000",
+            ],
+            text=True,
+        )
+        viscous = json.loads(raw_viscous)
+        self.assertEqual(viscous["viscous"], "T")
+        self.assertEqual(viscous["patch_ib(1)%slip"], "F")
 
     def test_binary_postprocess_mode_changes_only_the_output_format(self):
         silo, _ = case_module.build_case(2.7, "f90", 3.0, 0.1, "silo")
@@ -87,6 +126,18 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertIn('-n 1 -j 1', launcher)
         self.assertIn('--format binary', launcher)
         self.assertNotIn("-t pre_process simulation post_process", launcher)
+
+    def test_unity_launcher_supports_explicit_viscous_mode(self):
+        launcher = (
+            ROOT
+            / "mfc_euler_cylinder"
+            / "unity_submit_euler_cylinder.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('REYNOLDS="${REYNOLDS:-0}"', launcher)
+        self.assertIn('CASE_ARGS+=(--reynolds "$REYNOLDS")', launcher)
+        self.assertIn("mfc_viscous_cylinder", launcher)
+        self.assertIn("RUN_OK_MFC_CYLINDER.txt", launcher)
+        self.assertNotIn("EXPECTED_SNAPSHOTS=31", launcher)
 
     def test_mach3_normal_shock_reference(self):
         result = rh_module.normal_shock(3.0)
