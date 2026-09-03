@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "case_family": "mfc_2d_euler_circular_cylinder",
+  "scientific_role": "held-out curved bow-shock geometry and vortex false-positive control",
+  "physics": {
+    "equations": "two-dimensional compressible Euler",
+    "gas": "calorically perfect",
+    "gamma": 1.4,
+    "wall": "slip immersed circular cylinder",
+    "reynolds_number": null,
+    "reynolds_note": "Euler has no viscosity and no finite Reynolds-number parameter. Do not report this case as Re=1e4--1e5.",
+    "vortex_note": "No viscous vortex-shedding ground truth is claimed. Vorticity output is retained only to audit neural false positives."
+  },
+  "run_order": [
+    {"phase": "pilot", "mach": 2.7, "grid": "f90"},
+    {"phase": "grid_convergence", "mach": 2.7, "grid": "f180"},
+    {"phase": "grid_convergence", "mach": 2.7, "grid": "f270"},
+    {"phase": "held_out_ml_test", "mach": 3.0, "grid": "f180"},
+    {"phase": "second_experimental_anchor", "mach": 3.5, "grid": "f180"},
+    {"phase": "weaker_shock_generalization", "mach": 2.0, "grid": "f180"}
+  ],
+  "leakage_policy": "All saved states from one Mach/grid run form one indivisible case group.",
+  "validation_observables": [
+    "bow-shock centerline standoff distance divided by cylinder diameter",
+    "full near-nose bow-shock curve",
+    "surface pressure coefficient versus polar angle",
+    "density and pressure jumps on the stagnation streamline",
+    "post-shock Mach number on the stagnation streamline",
+    "late-time stationarity of the shock locus",
+    "absence of accepted shock pixels on the immersed boundary"
+  ],
+  "references": [
+    {
+      "role": "experimental anchor at Mach 2.7 and 3.5",
+      "citation": "Experimental Studies of Supersonic Flow past a Circular Cylinder, Journal of the Physical Society of Japan 11 (1956) 439",
+      "url": "https://doi.org/10.1143/JPSJ.11.439",
+      "reported_quantities": ["shock shape", "shock standoff", "surface Cp", "post-shock density", "subsonic-region streamlines"]
+    },
+    {
+      "role": "exact nose-jump verification",
+      "citation": "perfect-gas Rankine-Hugoniot normal-shock relations",
+      "generated_by": "rankine_hugoniot_reference.py"
+    }
+  ],
+  "acceptance_gates": {
+    "raw_state": "finite positive density and pressure outside the body",
+    "numerical_convergence": "f180-to-f270 change below 1% for standoff and below 2% for the near-nose shock curve after common-grid projection",
+    "normal_shock_verification": "one-sided stagnation-line jumps compared with the exact reference, with sampling offsets and numerical shock width reported",
+    "experimental_validation": "agreement reported with the digitized experimental uncertainty; no validation claim before experimental curves are digitized and compared",
+    "ml_reporting": "shock centerline/envelope and background/other are scored; vortex output is a false-positive count, not a positive target"
+  }
+}
