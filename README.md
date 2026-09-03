@@ -51,6 +51,7 @@ supporting evidence and rejected variants are recorded in `TUNING_REPORT.md`.
 | release archive: `reference_report_assets/` | reference copies of the figures produced for the revised report |
 | `REPORT_REPRODUCTION_RESULTS.md` | archived five-case target values and the precise qualification status |
 | `EXPECTED_RESULTS.csv` | explicit acceptance ranges and unresolved `TBD` entries |
+| `results/su2_euler_m3_aoa_0_4_8/` | compact figures, force histories, status labels, and provenance for the Unity 0°/4°/8° campaign |
 | `TUNING_REPORT.md` | numerical choices, rejected variants, and limitations |
 | `CHATGPT_CODEX_RUN_GUIDE.md` | optional guided workflow using Codex |
 | `tests/` | wrapper, metric-extraction, and consistency tests |

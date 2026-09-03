@@ -27,3 +27,19 @@ solver logs, fail-closed run manifests, native shock-ridge diagnostics,
 provenance, a file inventory, and SHA-256 checksums.  Byte-completeness and
 scientific acceptance are deliberately recorded separately: a nonzero
 acceptance gate does not delete otherwise complete raw fields.
+
+## Publish compact results to GitHub
+
+After the Unity job has produced the case directories, use the dedicated
+publisher. It commits reduced histories, figures, metrics, and provenance but
+never commits the large restart CSV or VTU files:
+
+```bash
+RUN_ROOT=/path/to/runs/euler_a048_full/CAMPAIGN \\
+  bash unity/publish_euler_a048_results.sh
+```
+
+Published campaigns appear in
+`results/su2_euler_m3_aoa_0_4_8/`. A nonzero per-case wrapper code is retained
+as `FIELD_RETAINED_NUMERICAL_GATE_FAILED`; field availability is not converted
+into a validation claim.
