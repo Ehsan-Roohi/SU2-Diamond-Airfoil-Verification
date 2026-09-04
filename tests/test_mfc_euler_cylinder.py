@@ -287,6 +287,9 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertIn("RUN_OK_CYLINDER_PACKAGES.txt", packager)
         self.assertIn("sha256sum", packager)
         self.assertIn("sbatch --parsable", packager)
+        self.assertIn('INCLUDE_VISCOUS="${INCLUDE_VISCOUS:-1}"', packager)
+        self.assertIn('if [[ "$INCLUDE_VISCOUS" == 1 ]]', packager)
+        self.assertIn("archive_count=3", packager)
         self.assertNotIn("rm -rf", packager)
 
     def test_vcfl_recovery_is_dt4_restart_and_afterok_chained(self):

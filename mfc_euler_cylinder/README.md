@@ -206,3 +206,9 @@ products, logs, inventories, case files, protocols, and success markers are
 included.  Bulky duplicate `restart_data`, failed Silo attempts, and smoke
 outputs remain untouched on Unity but are excluded from the transport
 archives.  Packaging runs as a Slurm job rather than loading the login node.
+If the viscous recovery is not yet PASS, package the three completed Euler
+runs without weakening any success check by setting `INCLUDE_VISCOUS=0`:
+
+```bash
+INCLUDE_VISCOUS=0 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_package_completed_cylinder_runs.sh)
+```

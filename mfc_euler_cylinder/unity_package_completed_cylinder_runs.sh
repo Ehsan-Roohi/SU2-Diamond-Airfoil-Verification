@@ -12,9 +12,18 @@ BASELINE_ROOT="${BASELINE_ROOT:-$DEFAULT_SCRATCH_ROOT/mfc_euler_cylinder_long}"
 CONTROL_ROOT="${CONTROL_ROOT:-$DEFAULT_SCRATCH_ROOT/mfc_euler_cylinder_vortex_controls}"
 VISCOUS_ROOT="${VISCOUS_ROOT:-$DEFAULT_SCRATCH_ROOT/mfc_viscous_cylinder_recovery}"
 PACKAGE_ROOT="${PACKAGE_ROOT:-$DEFAULT_SCRATCH_ROOT/cylinder_download_packages}"
+INCLUDE_VISCOUS="${INCLUDE_VISCOUS:-1}"
 STAMP="${STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
 
-for root in "$BASELINE_ROOT" "$CONTROL_ROOT" "$VISCOUS_ROOT"; do
+[[ "$INCLUDE_VISCOUS" == 0 || "$INCLUDE_VISCOUS" == 1 ]] || {
+    echo "ERROR: INCLUDE_VISCOUS must be 0 or 1." >&2
+    exit 2
+}
+required_roots=("$BASELINE_ROOT" "$CONTROL_ROOT")
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    required_roots+=("$VISCOUS_ROOT")
+fi
+for root in "${required_roots[@]}"; do
     [[ "$root" == /* && "$root" != / && -d "$root" ]] || {
         echo "ERROR: required non-root source directory is missing: $root" >&2
         exit 2
@@ -64,17 +73,24 @@ GRID_MARKER="$(latest_pass_marker \
     "$CONTROL_ROOT" RUN_OK_MFC_EULER_CYLINDER.txt grid_f180_cfl0p20)"
 CFL_MARKER="$(latest_pass_marker \
     "$CONTROL_ROOT" RUN_OK_MFC_EULER_CYLINDER.txt timestep_f90_cfl0p10)"
-VISCOUS_MARKER="$(latest_pass_marker \
-    "$VISCOUS_ROOT" RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt /production/)"
+VISCOUS_MARKER=""
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    VISCOUS_MARKER="$(latest_pass_marker \
+        "$VISCOUS_ROOT" RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt /production/)"
+fi
 
 BASELINE_CASE_DIR="$(dirname "$BASELINE_MARKER")"
 GRID_CASE_DIR="$(dirname "$GRID_MARKER")"
 CFL_CASE_DIR="$(dirname "$CFL_MARKER")"
-VISCOUS_CASE_DIR="$(dirname "$VISCOUS_MARKER")"
+VISCOUS_CASE_DIR=""
 BASELINE_RUN_ROOT="$(dirname "$BASELINE_CASE_DIR")"
 GRID_RUN_ROOT="$(dirname "$GRID_CASE_DIR")"
 CFL_RUN_ROOT="$(dirname "$CFL_CASE_DIR")"
-VISCOUS_RUN_ROOT="$(dirname "$VISCOUS_CASE_DIR")"
+VISCOUS_RUN_ROOT="none"
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    VISCOUS_CASE_DIR="$(dirname "$VISCOUS_MARKER")"
+    VISCOUS_RUN_ROOT="$(dirname "$VISCOUS_CASE_DIR")"
+fi
 
 validate_product() {
     local label="$1"
@@ -94,7 +110,9 @@ validate_product() {
 validate_product euler_baseline "$BASELINE_MARKER"
 validate_product euler_grid_f180 "$GRID_MARKER"
 validate_product euler_cfl_f90 "$CFL_MARKER"
-validate_product viscous_recovered "$VISCOUS_MARKER"
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    validate_product viscous_recovered "$VISCOUS_MARKER"
+fi
 
 PACKAGE_DIR="$PACKAGE_ROOT/cylinder_complete_$STAMP"
 [[ ! -e "$PACKAGE_DIR" ]] || {
@@ -111,8 +129,10 @@ printf 'euler_grid_f180\t%s\t%s\t%s\n' \
     "$GRID_MARKER" "$GRID_RUN_ROOT" "$GRID_CASE_DIR" >>"$SELECTION"
 printf 'euler_cfl_f90\t%s\t%s\t%s\n' \
     "$CFL_MARKER" "$CFL_RUN_ROOT" "$CFL_CASE_DIR" >>"$SELECTION"
-printf 'viscous_recovered\t%s\t%s\t%s\n' \
-    "$VISCOUS_MARKER" "$VISCOUS_RUN_ROOT" "$VISCOUS_CASE_DIR" >>"$SELECTION"
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    printf 'viscous_recovered\t%s\t%s\t%s\n' \
+        "$VISCOUS_MARKER" "$VISCOUS_RUN_ROOT" "$VISCOUS_CASE_DIR" >>"$SELECTION"
+fi
 
 SBATCH_FILE="$PACKAGE_DIR/package_completed_cylinder_runs.sbatch"
 cat >"$SBATCH_FILE" <<'SBATCH'
@@ -129,7 +149,10 @@ set -Eeuo pipefail
 : "${BASELINE_RUN_ROOT:?}"
 : "${GRID_RUN_ROOT:?}"
 : "${CFL_RUN_ROOT:?}"
-: "${VISCOUS_RUN_ROOT:?}"
+: "${INCLUDE_VISCOUS:?}"
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    : "${VISCOUS_RUN_ROOT:?}"
+fi
 
 INDEX="$PACKAGE_DIR/PACKAGE_INDEX.tsv"
 printf 'label\tsource_run\tarchive\tbytes\tsha256\n' >"$INDEX"
@@ -182,9 +205,14 @@ package_one() {
 package_one euler_baseline "$BASELINE_RUN_ROOT"
 package_one euler_grid_f180 "$GRID_RUN_ROOT"
 package_one euler_cfl_f90 "$CFL_RUN_ROOT"
-package_one viscous_recovered "$VISCOUS_RUN_ROOT"
+archive_count=3
+if [[ "$INCLUDE_VISCOUS" == 1 ]]; then
+    package_one viscous_recovered "$VISCOUS_RUN_ROOT"
+    archive_count=4
+fi
 
-printf 'status=PASS\narchives=4\nindex=%s\n' "$INDEX" | \
+printf 'status=PASS\narchives=%s\ninclude_viscous=%s\nindex=%s\n' \
+    "$archive_count" "$INCLUDE_VISCOUS" "$INDEX" | \
     tee "$PACKAGE_DIR/RUN_OK_CYLINDER_PACKAGES.txt"
 du -sh "$PACKAGE_DIR"
 SBATCH
@@ -193,7 +221,7 @@ PACKAGE_JOB="$(sbatch --parsable \
     --job-name=mfc-cyl-package-all \
     --output="$PACKAGE_DIR/slurm-%j.out" \
     --error="$PACKAGE_DIR/slurm-%j.err" \
-    --export="ALL,PACKAGE_DIR=$PACKAGE_DIR,BASELINE_RUN_ROOT=$BASELINE_RUN_ROOT,GRID_RUN_ROOT=$GRID_RUN_ROOT,CFL_RUN_ROOT=$CFL_RUN_ROOT,VISCOUS_RUN_ROOT=$VISCOUS_RUN_ROOT" \
+    --export="ALL,PACKAGE_DIR=$PACKAGE_DIR,BASELINE_RUN_ROOT=$BASELINE_RUN_ROOT,GRID_RUN_ROOT=$GRID_RUN_ROOT,CFL_RUN_ROOT=$CFL_RUN_ROOT,INCLUDE_VISCOUS=$INCLUDE_VISCOUS,VISCOUS_RUN_ROOT=$VISCOUS_RUN_ROOT" \
     "$SBATCH_FILE")"
 PACKAGE_JOB="${PACKAGE_JOB%%;*}"
 [[ "$PACKAGE_JOB" =~ ^[0-9]+$ ]] || {
@@ -206,6 +234,7 @@ ENV_FILE="$PACKAGE_DIR/submission.env"
     printf 'PACKAGE_DIR=%q\n' "$PACKAGE_DIR"
     printf 'PACKAGE_JOB=%q\n' "$PACKAGE_JOB"
     printf 'SELECTION=%q\n' "$SELECTION"
+    printf 'INCLUDE_VISCOUS=%q\n' "$INCLUDE_VISCOUS"
 } >"$ENV_FILE"
 
 echo "PACKAGE_DIR=$PACKAGE_DIR"
