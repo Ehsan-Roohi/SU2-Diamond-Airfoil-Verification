@@ -22,6 +22,7 @@ CYLINDER_DIAMETER = 1.0
 CYLINDER_RADIUS = 0.5 * CYLINDER_DIAMETER
 CFL_COEFFICIENT = 0.20
 VISCOUS_CFL_COEFFICIENT = 0.05
+RIEMANN_SOLVERS = {"hll": 1, "hllc": 2}
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ def build_case(
     start_time: float = 0.0,
     restart: bool = False,
     cfl_coefficient: float | None = None,
+    riemann_solver: str = "hllc",
 ) -> tuple[dict[str, object], dict[str, float | int | str | bool]]:
     """Return an MFC case dictionary and deterministic run metadata."""
 
@@ -90,6 +92,9 @@ def build_case(
         or cfl_coefficient > 0.5
     ):
         raise ValueError("--cfl-coefficient must be finite and in (0, 0.5]")
+    if riemann_solver not in RIEMANN_SOLVERS:
+        choices = ", ".join(sorted(RIEMANN_SOLVERS))
+        raise ValueError(f"--riemann-solver must be one of: {choices}")
 
     grid = GRIDS[grid_name]
     dx = (grid.x_end - grid.x_beg) / (grid.m + 1)
@@ -142,7 +147,7 @@ def build_case(
         "mapped_weno": "F",
         "null_weights": "F",
         "mp_weno": "F",
-        "riemann_solver": 2,
+        "riemann_solver": RIEMANN_SOLVERS[riemann_solver],
         "wave_speeds": 1,
         "viscous": "T" if viscous else "F",
         "fd_order": 4,
@@ -210,6 +215,8 @@ def build_case(
         "cfl_coefficient": cfl_coefficient,
         "default_cfl_coefficient": default_cfl_coefficient,
         "cfl_was_overridden": cfl_was_overridden,
+        "riemann_solver": riemann_solver,
+        "riemann_solver_id": RIEMANN_SOLVERS[riemann_solver],
         "dt": dt,
         "requested_start_time": start_time,
         "actual_start_time": actual_start_time,
@@ -257,6 +264,12 @@ def parse_args() -> argparse.Namespace:
         help="load old_grid/old_ic from restart_data at --start-time",
     )
     parser.add_argument(
+        "--riemann-solver",
+        choices=tuple(RIEMANN_SOLVERS),
+        default="hllc",
+        help="approximate Riemann solver; HLL is the more dissipative control",
+    )
+    parser.add_argument(
         "--reynolds",
         type=float,
         default=0.0,
@@ -279,6 +292,7 @@ def main() -> None:
             start_time=args.start_time,
             restart=args.restart,
             cfl_coefficient=args.cfl_coefficient,
+            riemann_solver=args.riemann_solver,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc

@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import unittest
+import uuid
 from pathlib import Path
 
 
@@ -25,6 +27,12 @@ VORTEX_PROTOCOL_PATH = (
 )
 PACKAGE_COMPLETED_PATH = (
     ROOT / "mfc_euler_cylinder" / "unity_package_completed_cylinder_runs.sh"
+)
+BIFURCATION_PATH = (
+    ROOT / "mfc_euler_cylinder" / "unity_submit_viscous_cylinder_bifurcation.sh"
+)
+CHECKPOINT_AUDIT_PATH = (
+    ROOT / "mfc_euler_cylinder" / "audit_viscous_checkpoint.py"
 )
 
 
@@ -92,6 +100,27 @@ class MFCEulerCylinderTests(unittest.TestCase):
                     case_module.build_case(
                         2.7, "f90", 8.0, 0.1, cfl_coefficient=value
                     )
+
+    def test_riemann_solver_selector_defaults_to_hllc_and_supports_hll(self):
+        hllc, hllc_metadata = case_module.build_case(
+            2.7, "f180", 3.0, 0.1, reynolds=1.0e4
+        )
+        hll, hll_metadata = case_module.build_case(
+            2.7, "f180", 3.0, 0.1, reynolds=1.0e4,
+            riemann_solver="hll",
+        )
+        self.assertEqual(hllc["riemann_solver"], 2)
+        self.assertEqual(hll["riemann_solver"], 1)
+        self.assertEqual(hllc_metadata["riemann_solver"], "hllc")
+        self.assertEqual(hll_metadata["riemann_solver"], "hll")
+        for key in hllc:
+            if key != "riemann_solver":
+                self.assertEqual(hllc[key], hll[key])
+        with self.assertRaises(ValueError):
+            case_module.build_case(
+                2.7, "f180", 3.0, 0.1, reynolds=1.0e4,
+                riemann_solver="roe",
+            )
 
     def test_viscous_restart_reindexes_physical_time_on_safe_clock(self):
         case, metadata = case_module.build_case(
@@ -173,6 +202,24 @@ class MFCEulerCylinderTests(unittest.TestCase):
         viscous = json.loads(raw_viscous)
         self.assertEqual(viscous["viscous"], "T")
         self.assertEqual(viscous["patch_ib(1)%slip"], "F")
+
+        raw_hll = subprocess.check_output(
+            [
+                sys.executable,
+                str(CASE_PATH),
+                "--mach", "2.7",
+                "--grid", "f180",
+                "--final-time", "3.1",
+                "--save-dt", "0.025",
+                "--start-time", "2.7",
+                "--restart",
+                "--reynolds", "10000",
+                "--cfl-coefficient", "0.025",
+                "--riemann-solver", "hll",
+            ],
+            text=True,
+        )
+        self.assertEqual(json.loads(raw_hll)["riemann_solver"], 1)
 
         raw_cfl = subprocess.check_output(
             [
@@ -303,6 +350,83 @@ class MFCEulerCylinderTests(unittest.TestCase):
         self.assertIn("RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt", launcher)
         self.assertIn('cp --reflink=auto "$SOURCE_STATE"', launcher)
         self.assertNotIn('rm -rf', launcher)
+
+    def test_viscous_bifurcation_is_matched_short_restart(self):
+        launcher = BIFURCATION_PATH.read_text(encoding="utf-8")
+        self.assertIn('SOURCE_STEP="${SOURCE_STEP:-35964}"', launcher)
+        self.assertIn('START_TIME="${START_TIME:-2.7}"', launcher)
+        self.assertIn('FINAL_TIME="${FINAL_TIME:-3.1}"', launcher)
+        self.assertIn('CFL_COEFFICIENT="${CFL_COEFFICIENT:-0.025}"', launcher)
+        self.assertIn("source_dt / new_dt, 2.0", launcher)
+        self.assertIn("prepare_branch hllc", launcher)
+        self.assertIn("prepare_branch hll", launcher)
+        self.assertIn("run_branch hllc", launcher)
+        self.assertIn("run_branch hll", launcher)
+        self.assertIn('--riemann-solver "$solver"', launcher)
+        self.assertIn("--scratch", launcher)
+        self.assertIn("CHECKPOINT_AUDIT.json", launcher)
+        self.assertIn("RUN_COMPLETE_BIFURCATION_DIAGNOSTIC.txt", launcher)
+        self.assertNotIn("rm -rf", launcher)
+
+    def test_checkpoint_audit_is_explicitly_not_physical_validation(self):
+        audit = CHECKPOINT_AUDIT_PATH.read_text(encoding="utf-8")
+        self.assertIn("density_implied_vcfl", audit)
+        self.assertIn("rho_fluid_min_region", audit)
+        self.assertIn("COMPLETED_NUMERICAL_GATE", audit)
+        self.assertIn("not physical validation or vortex ground truth", audit)
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy is optional")
+    def test_checkpoint_audit_reads_raw_five_field_layout(self):
+        import numpy as np
+
+        root = ROOT / "tests" / f"_audit_fixture_{uuid.uuid4().hex}"
+        root.mkdir()
+        self.addCleanup(shutil.rmtree, root, True)
+        restart = root / "restart_data"
+        restart.mkdir()
+        nx, ny = 120, 100
+        x = np.linspace(-1.975, 3.975, nx, dtype="<f8")
+        y = np.linspace(-2.475, 2.475, ny, dtype="<f8")
+        x.tofile(restart / "lustre_x_cb.dat")
+        y.tofile(restart / "lustre_y_cb.dat")
+        state = np.zeros((5, ny, nx), dtype="<f8")
+        state[0] = 1.0
+        state[1] = 2.7
+        state[3] = 1.0 / (1.4 * 0.4) + 0.5 * 2.7**2
+        iy = int(np.argmin(np.abs(y)))
+        ix = int(np.argmin(np.abs(x - 0.525)))
+        state[0, iy, ix] = 0.2
+        state[1, iy, ix] = 0.0
+        state[3, iy, ix] = 1.0 / (1.4 * 0.4)
+        state.tofile(restart / "lustre_10.dat")
+        runtime = root / "run_time.inf"
+        runtime.write_text(
+            "           10             0.000010             0.000100"
+            "             0.010000             0.020000             1.0E+00\n",
+            encoding="utf-8",
+        )
+        output_tsv = root / "audit.tsv"
+        output_json = root / "audit.json"
+        subprocess.check_call(
+            [
+                sys.executable, str(CHECKPOINT_AUDIT_PATH),
+                "--restart-dir", str(restart),
+                "--grid", "smoke",
+                "--dt", "1e-5",
+                "--reynolds", "10000",
+                "--mach", "2.7",
+                "--expected-final-step", "10",
+                "--run-time-info", str(runtime),
+                "--output-tsv", str(output_tsv),
+                "--output-json", str(output_json),
+            ],
+            stdout=subprocess.DEVNULL,
+        )
+        summary = json.loads(output_json.read_text(encoding="utf-8"))
+        self.assertEqual(summary["diagnostic_status"], "COMPLETED_NUMERICAL_GATE")
+        self.assertAlmostEqual(summary["final_checkpoint"]["rho_min"], 0.2)
+        self.assertEqual(summary["run_time_info"]["max_vcfl"], 0.02)
+        self.assertTrue(output_tsv.is_file())
 
     def test_mach3_normal_shock_reference(self):
         result = rh_module.normal_shock(3.0)

@@ -171,6 +171,42 @@ as `production/RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt`.  The original six
 states and recovered continuation form one leakage-free trajectory even though
 their checkpoint indices use different time-step clocks.
 
+### Diagnose the later localized viscous failure
+
+The recovered trajectory subsequently stopped near `t=2.83`: a low-density,
+high-temperature cell developed about nine grid cells outside the rear-lower
+cylinder surface and drove `VCFL` above one.  Output after the last stable
+checkpoint is not accepted as a physical wake dataset.  Run the frozen
+two-branch diagnostic from the conservative `t=2.7` checkpoint:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_viscous_cylinder_bifurcation.sh)
+```
+
+Both branches use `CFL_COEFFICIENT=0.025` and advance only from `t=2.7` to
+`t=3.1`; one retains HLLC and the other uses the more dissipative HLL flux.
+They run sequentially in one Slurm allocation so MFC's case-specialized build
+tree cannot be modified concurrently.  The source checkpoint is copied by
+reflink into two new directories and is never edited.
+
+Each branch writes `CHECKPOINT_AUDIT.tsv`, `CHECKPOINT_AUDIT.json`, its full
+simulation log, a field inventory, and either
+`RUN_OK_<solver>_DIAGNOSTIC.txt` or `RUN_FAILED_<solver>_DIAGNOSTIC.txt`.
+`COMPLETED_NUMERICAL_GATE` means only that the branch reached `t=3.1` with
+finite positive density and recorded `VCFL<1`; it is deliberately not a
+physical-validation or vortex-ground-truth claim.  Interpret the branches as:
+
+- HLL succeeds while HLLC fails: the contact-resolving flux is implicated in
+  the localized immersed-boundary instability;
+- both fail: flux dissipation alone is insufficient and the next controlled
+  change should target the no-slip immersed-boundary treatment;
+- both succeed: extend the matched pair only after visually auditing density,
+  pressure, temperature proxy, shock position, and the near-wall wake.
+
+Override `SOURCE_PROD_DIR` only if the printed recovery directory differs from
+the frozen default.  Source the printed `submission.env` to monitor the single
+diagnostic job.
+
 Only after the pilot is numerically physical and displays a developed wake
 should the identical fixed-grid runs at `REYNOLDS=50000` and
 `REYNOLDS=100000` be submitted.  `Re_D=10^6` is intentionally excluded from
