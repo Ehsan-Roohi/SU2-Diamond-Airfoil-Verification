@@ -14,6 +14,9 @@ resolution study they are not quantitative boundary-layer or force validation.
 The viscous mode uses CFL coefficient 0.05; Euler retains 0.20.  This follows
 the observed Re=10,000 f180 stop at step 1870, where the earlier viscous
 coefficient produced `vcfl=1.00068065`.
+For controlled sensitivity tests, `CFL_COEFFICIENT` may explicitly override
+these defaults; the launcher records that value in the run directory,
+`submission.env`, and the success marker.
 
 No validated solution field is committed here.  The superficially similar
 public `tbellosta/Mach3-cylinder` repository supplies an old SU2 configuration
@@ -95,6 +98,47 @@ MACH=3.0 GRID=f180 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roo
 Mach 3.5 supplies a second direct experimental anchor and Mach 2.0 is a weaker
 shock generalization case; both remain optional until the Mach-2.7 grid study
 passes.
+
+## Euler wake grid and time-step controls
+
+The completed `f90/CFL=0.20` trajectory is the baseline for the raw-field
+rotational-structure audit.  Submit the two missing controls together with:
+
+```bash
+MFC_SOURCE_ROOT=/project/pi_roohie_umass_edu/github_sync/KineticGaussian/SU2-Diamond-Airfoil-Verification/third_party/MFC-0c9a1d43 \
+CONTROL_ROOT=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_euler_cylinder_vortex_controls \
+MFC_CYL_PARENT=/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_euler_cylinder_control_builds \
+FINAL_TIME=8 SAVE_DT=0.1 \
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_euler_vortex_controls.sh)
+```
+
+This creates and submits exactly two independent runs:
+
+- `f180/CFL=0.20`, the spatial-resolution control;
+- `f90/CFL=0.10`, the fixed-grid half-time-step control.
+
+This three-point design separates the factors cleanly: baseline versus
+`f90/CFL=0.10` isolates the time step, while `f90/CFL=0.10` versus
+`f180/CFL=0.20` isolates the grid at the identical solver step
+`dt=0.0003003003003003003`.
+
+Each control uses a distinct MFC build tree and data root, so their smoke
+compiles and outputs cannot overwrite one another.  The wrapper prints the two
+production job IDs and writes `CONTROL_MANIFEST.env`; source that file to
+monitor all four smoke/production jobs.  The existing baseline is not
+resubmitted.  The complete comparison and conservative decision rule are in
+`vortex_sensitivity_protocol.json`.  The denser `SAVE_DT=0.1` output supports
+track advection and spectral audit; compare fields at matched physical times
+and downsample the controls when comparing directly with the 31-state
+baseline.
+
+For an individual custom sensitivity run, use the main launcher directly, for
+example:
+
+```bash
+GRID=f90 CFL_COEFFICIENT=0.10 FINAL_TIME=8 SAVE_DT=0.1 \
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_euler_cylinder.sh)
+```
 
 ## Fixed-grid viscous/no-slip Reynolds sweep
 

@@ -18,6 +18,7 @@ GRID="${GRID:-f90}"
 FINAL_TIME="${FINAL_TIME:-3.0}"
 SAVE_DT="${SAVE_DT:-0.1}"
 REYNOLDS="${REYNOLDS:-0}"
+CFL_COEFFICIENT="${CFL_COEFFICIENT:-auto}"
 AFTER_JOB="${AFTER_JOB:-none}"
 RECOVER_CASE_DIR="${RECOVER_CASE_DIR:-}"
 RECOVERY_DATA_ROOT="${RECOVERY_DATA_ROOT:-/scratch4/workspace/roohie_umass_edu-mfc-a40-cv/mfc_euler_cylinder_recovery}"
@@ -56,6 +57,31 @@ reynolds = float(sys.argv[1])
 if reynolds < 0 or 0 < reynolds < 100:
     raise SystemExit("ERROR: REYNOLDS must be zero or at least 100")
 PY
+if [[ "$CFL_COEFFICIENT" != auto && ! "$CFL_COEFFICIENT" =~ ^[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$ ]]; then
+    echo "ERROR: CFL_COEFFICIENT must be 'auto' or a positive number." >&2
+    exit 2
+fi
+CFL_TAG="$(python3 - "$CFL_COEFFICIENT" <<'PY'
+import math
+import sys
+
+text = sys.argv[1]
+if text == "auto":
+    print("default")
+else:
+    value = float(text)
+    if not math.isfinite(value) or not 0.0 < value <= 0.5:
+        raise SystemExit("ERROR: CFL_COEFFICIENT must be in (0, 0.5]")
+    print(f"{value:.8g}".replace(".", "p").replace("+", ""))
+PY
+)"
+if [[ "$CFL_TAG" == default ]]; then
+    CFL_RUN_SUFFIX=""
+    CFL_JOB_SUFFIX=""
+else
+    CFL_RUN_SUFFIX="_cfl${CFL_TAG}"
+    CFL_JOB_SUFFIX="-cfl${CFL_TAG}"
+fi
 if [[ ! -x "$MFC_SOURCE_ROOT/mfc.sh" ]]; then
     echo "ERROR: pinned source MFC checkout not found: $MFC_SOURCE_ROOT" >&2
     exit 2
@@ -160,12 +186,15 @@ if [[ -n "$RECOVER_CASE_DIR" ]]; then
     SOURCE_RUN_TAG="$(basename "$(dirname "$SOURCE_CASE_DIR")")"
     RECOVERY_DIR="$RECOVERY_DATA_ROOT/${SOURCE_RUN_TAG}_${GRID}_post_${STAMP}"
     mkdir -p "$RECOVERY_DIR/restart_data"
-    for name in case.py rankine_hugoniot_reference.py validation_protocol.json; do
+    for name in case.py rankine_hugoniot_reference.py validation_protocol.json vortex_sensitivity_protocol.json; do
         curl -fL --retry 3 "$RAW_BASE/$name" -o "$RECOVERY_DIR/$name"
     done
 
     RECOVERY_CASE_ARGS=(--mach "$MACH" --grid "$GRID" \
         --final-time "$FINAL_TIME" --save-dt "$SAVE_DT")
+    if [[ "$CFL_COEFFICIENT" != auto ]]; then
+        RECOVERY_CASE_ARGS+=(--cfl-coefficient "$CFL_COEFFICIENT")
+    fi
     if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) > 0 else 1)" "$REYNOLDS"; then
         RECOVERY_CASE_ARGS+=(--reynolds "$REYNOLDS")
     fi
@@ -228,6 +257,7 @@ set -Eeuo pipefail
 : "${FINAL_TIME:?}"
 : "${SAVE_DT:?}"
 : "${REYNOLDS:?}"
+: "${CFL_COEFFICIENT:?}"
 : "${EXPECTED_SNAPSHOTS:?}"
 : "${PORTABLE_CMAKE_SHA256:?}"
 
@@ -242,6 +272,9 @@ GPU_CMAKE="$MFC_CYL_ROOT/cmake/GPU.cmake"
 
 CASE_ARGS=(--mach "$MACH" --grid "$GRID" --final-time "$FINAL_TIME" \
     --save-dt "$SAVE_DT")
+if [[ "$CFL_COEFFICIENT" != auto ]]; then
+    CASE_ARGS+=(--cfl-coefficient "$CFL_COEFFICIENT")
+fi
 if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) > 0 else 1)" "$REYNOLDS"; then
     CASE_ARGS+=(--reynolds "$REYNOLDS")
 fi
@@ -314,8 +347,8 @@ done
 
 final_product="$(tail -n 1 "$INVENTORY" | cut -f4)"
 RUN_OK_PATH="$RECOVERY_DIR/RUN_OK_MFC_CYLINDER_RECOVERED.txt"
-printf 'status=PASS\nsource_case=%s\nreynolds=%s\nrecovery_dir=%s\noutput_mode=%s\nsnapshots=%s\nfinal_product=%s\n' \
-    "$SOURCE_CASE_DIR" "$REYNOLDS" "$RECOVERY_DIR" "$output_mode" "$EXPECTED_SNAPSHOTS" \
+printf 'status=PASS\nsource_case=%s\nreynolds=%s\ncfl_coefficient=%s\nrecovery_dir=%s\noutput_mode=%s\nsnapshots=%s\nfinal_product=%s\n' \
+    "$SOURCE_CASE_DIR" "$REYNOLDS" "$CFL_COEFFICIENT" "$RECOVERY_DIR" "$output_mode" "$EXPECTED_SNAPSHOTS" \
     "$final_product" | tee "$RUN_OK_PATH"
 if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) == 0 else 1)" "$REYNOLDS"; then
     cp "$RUN_OK_PATH" "$RECOVERY_DIR/RUN_OK_MFC_EULER_CYLINDER_RECOVERED.txt"
@@ -328,7 +361,7 @@ RECOVERY_SBATCH
         --job-name=mfc-euler-cyl-post-recover \
         --output="$RECOVERY_DIR/slurm-%j.out" \
         --error="$RECOVERY_DIR/slurm-%j.err" \
-        --export="ALL,RECOVERY_DIR=$RECOVERY_DIR,SOURCE_CASE_DIR=$SOURCE_CASE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,REYNOLDS=$REYNOLDS,EXPECTED_SNAPSHOTS=$EXPECTED_SNAPSHOTS,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
+        --export="ALL,RECOVERY_DIR=$RECOVERY_DIR,SOURCE_CASE_DIR=$SOURCE_CASE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,REYNOLDS=$REYNOLDS,CFL_COEFFICIENT=$CFL_COEFFICIENT,EXPECTED_SNAPSHOTS=$EXPECTED_SNAPSHOTS,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
         "$RECOVERY_SBATCH")"
     RECOVERY_JOB="${RECOVERY_JOB%%;*}"
     [[ "$RECOVERY_JOB" =~ ^[0-9]+$ ]] || {
@@ -340,6 +373,7 @@ RECOVERY_SBATCH
         printf 'SOURCE_CASE_DIR=%q\n' "$SOURCE_CASE_DIR"
         printf 'RECOVERY_DIR=%q\n' "$RECOVERY_DIR"
         printf 'RECOVERY_JOB=%q\n' "$RECOVERY_JOB"
+        printf 'CFL_COEFFICIENT=%q\n' "$CFL_COEFFICIENT"
     } >"$RECOVERY_ENV"
     echo "SOURCE_CASE_DIR=$SOURCE_CASE_DIR"
     echo "RECOVERY_DIR=$RECOVERY_DIR"
@@ -362,7 +396,7 @@ else:
     print(f"mfc_viscous_cylinder re{tag}")
 PY
 )
-RUN_BASE="$DATA_ROOT/runs/$CASE_FAMILY/m${MACH_TAG}_${PHYSICS_TAG}_${GRID}_${STAMP}"
+RUN_BASE="$DATA_ROOT/runs/$CASE_FAMILY/m${MACH_TAG}_${PHYSICS_TAG}_${GRID}${CFL_RUN_SUFFIX}_${STAMP}"
 SMOKE_DIR="$RUN_BASE/smoke"
 CASE_DIR="$RUN_BASE/$GRID"
 mkdir -p "$SMOKE_DIR" "$CASE_DIR"
@@ -371,22 +405,25 @@ for destination in "$SMOKE_DIR" "$CASE_DIR"; do
     curl -fL --retry 3 "$RAW_BASE/case.py" -o "$destination/case.py"
     curl -fL --retry 3 "$RAW_BASE/rankine_hugoniot_reference.py" \
         -o "$destination/rankine_hugoniot_reference.py"
-    curl -fL --retry 3 "$RAW_BASE/validation_protocol.json" \
-        -o "$destination/validation_protocol.json"
+    for name in validation_protocol.json vortex_sensitivity_protocol.json; do
+        curl -fL --retry 3 "$RAW_BASE/$name" -o "$destination/$name"
+    done
 done
 
-EXPECTED_SNAPSHOTS="$(python3 - "$CASE_DIR/case.py" "$MACH" "$GRID" "$FINAL_TIME" "$SAVE_DT" "$REYNOLDS" <<'PY'
+EXPECTED_SNAPSHOTS="$(python3 - "$CASE_DIR/case.py" "$MACH" "$GRID" "$FINAL_TIME" "$SAVE_DT" "$REYNOLDS" "$CFL_COEFFICIENT" <<'PY'
 import json
 import math
 import subprocess
 import sys
 
-path, mach, grid, final_time, save_dt, reynolds_text = sys.argv[1:]
+path, mach, grid, final_time, save_dt, reynolds_text, cfl_text = sys.argv[1:]
 reynolds = float(reynolds_text)
 command = [sys.executable, path, "--mach", mach, "--grid", grid,
            "--final-time", final_time, "--save-dt", save_dt]
 if reynolds > 0:
     command.extend(["--reynolds", reynolds_text])
+if cfl_text != "auto":
+    command.extend(["--cfl-coefficient", cfl_text])
 raw = subprocess.check_output(command, text=True)
 case = json.loads(raw)
 expected_indices = {
@@ -426,7 +463,7 @@ if not 3 <= expected_snapshots <= 501:
 print(expected_snapshots)
 PY
 )"
-echo "PREFLIGHT=PASS MACH=$MACH REYNOLDS=$REYNOLDS GRID=$GRID SNAPSHOTS=$EXPECTED_SNAPSHOTS"
+echo "PREFLIGHT=PASS MACH=$MACH REYNOLDS=$REYNOLDS GRID=$GRID CFL=$CFL_COEFFICIENT SNAPSHOTS=$EXPECTED_SNAPSHOTS"
 
 python3 "$CASE_DIR/rankine_hugoniot_reference.py" --mach "$MACH" \
     --output "$CASE_DIR/RH_REFERENCE.json"
@@ -447,6 +484,7 @@ set -Eeuo pipefail
 : "${FINAL_TIME:?}"
 : "${SAVE_DT:?}"
 : "${REYNOLDS:?}"
+: "${CFL_COEFFICIENT:?}"
 : "${BUILD_MODE:?}"
 : "${EXPECTED_SNAPSHOTS:?}"
 : "${PORTABLE_CMAKE_SHA256:?}"
@@ -463,6 +501,9 @@ export OMP_NUM_THREADS=1
 command -v mpirun >/dev/null || { echo "ERROR: mpirun not found." >&2; exit 5; }
 
 CASE_ARGS=(--mach "$MACH" --grid "$GRID" --final-time "$FINAL_TIME" --save-dt "$SAVE_DT")
+if [[ "$CFL_COEFFICIENT" != auto ]]; then
+    CASE_ARGS+=(--cfl-coefficient "$CFL_COEFFICIENT")
+fi
 if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) > 0 else 1)" "$REYNOLDS"; then
     CASE_ARGS+=(--reynolds "$REYNOLDS")
 fi
@@ -568,8 +609,8 @@ done
 
 FINAL_PRODUCT="$(tail -n 1 "$INVENTORY" | cut -f4)"
 RUN_OK_PATH="$CASE_DIR/RUN_OK_MFC_CYLINDER.txt"
-printf 'status=PASS\nmach=%s\nreynolds=%s\ngrid=%s\nfinal_time=%s\nsnapshots=%s\npostprocess_mode=%s\nfinal_restart=%s\nfinal_product=%s\n' \
-    "$MACH" "$REYNOLDS" "$GRID" "$(python3 -c "print(${STOP_STEP} * ${DT})")" \
+printf 'status=PASS\nmach=%s\nreynolds=%s\ngrid=%s\ncfl_coefficient=%s\nfinal_time=%s\nsnapshots=%s\npostprocess_mode=%s\nfinal_restart=%s\nfinal_product=%s\n' \
+    "$MACH" "$REYNOLDS" "$GRID" "$CFL_COEFFICIENT" "$(python3 -c "print(${STOP_STEP} * ${DT})")" \
     "$EXPECTED_SNAPSHOTS" "$output_mode" "$FINAL_RESTART" "$FINAL_PRODUCT" | \
     tee "$RUN_OK_PATH"
 if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) == 0 else 1)" "$REYNOLDS"; then
@@ -590,6 +631,7 @@ ENV_FILE="$RUN_BASE/submission.env"
     printf 'GRID=%q\n' "$GRID"
     printf 'FINAL_TIME=%q\n' "$FINAL_TIME"
     printf 'SAVE_DT=%q\n' "$SAVE_DT"
+    printf 'CFL_COEFFICIENT=%q\n' "$CFL_COEFFICIENT"
     printf 'CASE_SHA256=%q\n' "$CASE_SHA256"
     printf 'MFC_COMMIT=%q\n' "$actual_mfc_commit"
     printf 'PORTABLE_CMAKE_SHA256=%q\n' "$PORTABLE_CMAKE_SHA256"
@@ -606,7 +648,7 @@ SMOKE_JOB="$({
         --constraint='intel&x86_64_v4' "${dependency_args[@]}" \
         --job-name=mfc-euler-cyl-smoke \
         --output="$SMOKE_DIR/slurm-%j.out" --error="$SMOKE_DIR/slurm-%j.err" \
-        --export="ALL,CASE_DIR=$SMOKE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,REYNOLDS=$REYNOLDS,GRID=smoke,FINAL_TIME=0.05,SAVE_DT=0.025,BUILD_MODE=scratch,EXPECTED_SNAPSHOTS=3,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
+        --export="ALL,CASE_DIR=$SMOKE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,REYNOLDS=$REYNOLDS,CFL_COEFFICIENT=$CFL_COEFFICIENT,GRID=smoke,FINAL_TIME=0.05,SAVE_DT=0.025,BUILD_MODE=scratch,EXPECTED_SNAPSHOTS=3,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
         "$SBATCH_FILE"
 })"
 SMOKE_JOB="${SMOKE_JOB%%;*}"
@@ -616,9 +658,9 @@ PROD_JOB="$({
     cd "$CASE_DIR"
     sbatch --parsable --ntasks="$PROD_NTASKS" --mem="$PROD_MEMORY" --time="$PROD_WALLTIME" \
         --constraint='intel&x86_64_v4' --dependency="afterok:$SMOKE_JOB" \
-        --job-name="mfc-cyl-m${MACH_TAG}-${PHYSICS_TAG}-${GRID}" \
+        --job-name="mfc-cyl-m${MACH_TAG}-${PHYSICS_TAG}-${GRID}${CFL_JOB_SUFFIX}" \
         --output="$CASE_DIR/slurm-%j.out" --error="$CASE_DIR/slurm-%j.err" \
-        --export="ALL,CASE_DIR=$CASE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,REYNOLDS=$REYNOLDS,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,BUILD_MODE=nobuild,EXPECTED_SNAPSHOTS=$EXPECTED_SNAPSHOTS,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
+        --export="ALL,CASE_DIR=$CASE_DIR,MFC_CYL_ROOT=$MFC_CYL_ROOT,MACH=$MACH,REYNOLDS=$REYNOLDS,CFL_COEFFICIENT=$CFL_COEFFICIENT,GRID=$GRID,FINAL_TIME=$FINAL_TIME,SAVE_DT=$SAVE_DT,BUILD_MODE=nobuild,EXPECTED_SNAPSHOTS=$EXPECTED_SNAPSHOTS,PORTABLE_CMAKE_SHA256=$PORTABLE_CMAKE_SHA256" \
         "$SBATCH_FILE"
 })"
 PROD_JOB="${PROD_JOB%%;*}"

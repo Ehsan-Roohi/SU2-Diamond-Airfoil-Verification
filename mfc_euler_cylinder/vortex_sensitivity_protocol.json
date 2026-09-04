@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "objective": "Determine whether raw-field rotational structures in the Mach-2.7 Euler/slip cylinder wake persist under spatial-grid and solver-time-step controls.",
+  "trajectory_grouping": "Each complete run is one case-level, leakage-free trajectory group; snapshots from a trajectory must never be split between train and test.",
+  "common_parameters": {
+    "mach": 2.7,
+    "reynolds_number": null,
+    "physics": "two-dimensional compressible Euler with a slip immersed cylinder",
+    "final_nondimensional_time": 8.0
+  },
+  "matrix": [
+    {
+      "role": "completed_existing_baseline",
+      "grid": "f90",
+      "cells_per_diameter": 90,
+      "cfl_coefficient": 0.2,
+      "solver_dt": 0.0006006006006006006,
+      "available_snapshots": 31,
+      "submit_by_control_wrapper": false
+    },
+    {
+      "role": "spatial_resolution_control",
+      "grid": "f180",
+      "cells_per_diameter": 180,
+      "cfl_coefficient": 0.2,
+      "solver_dt": 0.0003003003003003003,
+      "requested_output_interval": 0.1,
+      "expected_snapshots": 81,
+      "submit_by_control_wrapper": true
+    },
+    {
+      "role": "time_step_control",
+      "grid": "f90",
+      "cells_per_diameter": 90,
+      "cfl_coefficient": 0.1,
+      "solver_dt": 0.0003003003003003003,
+      "requested_output_interval": 0.1,
+      "expected_snapshots": 81,
+      "submit_by_control_wrapper": true
+    }
+  ],
+  "factor_isolation": {
+    "time_step": "Compare f90/CFL=0.20 with f90/CFL=0.10.",
+    "spatial_grid_at_matched_dt": "Compare f90/CFL=0.10 with f180/CFL=0.20; both use dt=0.0003003003003003003."
+  },
+  "required_raw_field_tests": [
+    "omega_z, lambda_ci, and Gamma_2 after geometry, 0.08D wall-band, and dilated-shock exclusion",
+    "signed object tracks, lifetimes, paths, and convection speeds",
+    "wake-probe transverse-velocity and pressure spectra on a common late-time window",
+    "track and spectral stability across the baseline, grid control, and time-step control"
+  ],
+  "decision_rule": "Do not claim Euler shock-generated vortex shedding unless alternating signed tracks persist and a common Strouhal peak remains stable under both controls. Otherwise report rotational wake candidates or numerical sensitivity evidence.",
+  "ground_truth_warning": "The Euler/slip cylinder contains no viscous vortex-shedding ground truth. ML vortex outputs remain candidates until the full control matrix is audited."
+}

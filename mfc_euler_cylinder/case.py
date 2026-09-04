@@ -55,7 +55,8 @@ def build_case(
     reynolds: float = 0.0,
     start_time: float = 0.0,
     restart: bool = False,
-) -> tuple[dict[str, object], dict[str, float | int | str]]:
+    cfl_coefficient: float | None = None,
+) -> tuple[dict[str, object], dict[str, float | int | str | bool]]:
     """Return an MFC case dictionary and deterministic run metadata."""
 
     if not math.isfinite(mach) or mach <= 1.0:
@@ -77,13 +78,25 @@ def build_case(
     if restart != (start_time > 0.0):
         raise ValueError("restart mode requires a positive --start-time and vice versa")
 
+    default_cfl_coefficient = (
+        VISCOUS_CFL_COEFFICIENT if reynolds > 0.0 else CFL_COEFFICIENT
+    )
+    cfl_was_overridden = cfl_coefficient is not None
+    if cfl_coefficient is None:
+        cfl_coefficient = default_cfl_coefficient
+    if (
+        not math.isfinite(cfl_coefficient)
+        or cfl_coefficient <= 0.0
+        or cfl_coefficient > 0.5
+    ):
+        raise ValueError("--cfl-coefficient must be finite and in (0, 0.5]")
+
     grid = GRIDS[grid_name]
     dx = (grid.x_end - grid.x_beg) / (grid.m + 1)
     dy = (grid.y_end - grid.y_beg) / (grid.n + 1)
     a_inf = math.sqrt(GAMMA * P_INF / RHO_INF)
     speed_inf = mach * a_inf
     viscous = reynolds > 0.0
-    cfl_coefficient = VISCOUS_CFL_COEFFICIENT if viscous else CFL_COEFFICIENT
     dt = cfl_coefficient * min(dx, dy) / (speed_inf + a_inf)
 
     # Keep every requested output interval equal and make the final state a
@@ -185,7 +198,7 @@ def build_case(
         # viscosity.  With rho_inf=D=a_inf=1, Re_D=rho*U*D/mu and therefore
         # 1/mu = Re_D/U_inf.
         case["fluid_pp(1)%Re(1)"] = reynolds / speed_inf
-    metadata: dict[str, float | int | str] = {
+    metadata: dict[str, float | int | str | bool] = {
         "mach": mach,
         "gamma": GAMMA,
         "grid": grid_name,
@@ -195,6 +208,8 @@ def build_case(
         "dx_over_d": dx / CYLINDER_DIAMETER,
         "dy_over_d": dy / CYLINDER_DIAMETER,
         "cfl_coefficient": cfl_coefficient,
+        "default_cfl_coefficient": default_cfl_coefficient,
+        "cfl_was_overridden": cfl_was_overridden,
         "dt": dt,
         "requested_start_time": start_time,
         "actual_start_time": actual_start_time,
@@ -228,6 +243,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-dt", type=float, default=0.1)
     parser.add_argument("--start-time", type=float, default=0.0)
     parser.add_argument(
+        "--cfl-coefficient",
+        type=float,
+        default=None,
+        help=(
+            "explicit CFL coefficient for time-step sensitivity; defaults to "
+            "0.20 for Euler and 0.05 for viscous mode"
+        ),
+    )
+    parser.add_argument(
         "--restart",
         action="store_true",
         help="load old_grid/old_ic from restart_data at --start-time",
@@ -246,14 +270,15 @@ def main() -> None:
     args = parse_args()
     try:
         case, _ = build_case(
-            args.mach,
-            args.grid,
-            args.final_time,
-            args.save_dt,
-            args.format,
-            args.reynolds,
-            args.start_time,
-            args.restart,
+            mach=args.mach,
+            grid_name=args.grid,
+            final_time=args.final_time,
+            save_dt=args.save_dt,
+            output_format=args.format,
+            reynolds=args.reynolds,
+            start_time=args.start_time,
+            restart=args.restart,
+            cfl_coefficient=args.cfl_coefficient,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
