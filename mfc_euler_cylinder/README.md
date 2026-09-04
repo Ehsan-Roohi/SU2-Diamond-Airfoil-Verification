@@ -189,3 +189,20 @@ Return the complete `CASE_DIR` if storage permits.  At minimum retain:
   or `POSTPROCESS_INVENTORY.tsv` (Silo or MFC binary).
 
 All states from one Mach/grid run must remain in one leakage-free case group.
+
+## Package all completed cylinder runs for download
+
+After the Euler baseline, both Euler controls, and the recovered viscous run
+have PASS markers, submit one non-destructive packaging job:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_package_completed_cylinder_runs.sh)
+```
+
+The script selects only the latest successful non-smoke member of each run
+family.  It creates four independent `.tar.gz` archives with SHA-256 files and
+`PACKAGE_INDEX.tsv` under the printed `PACKAGE_DIR`.  Silo or binary field
+products, logs, inventories, case files, protocols, and success markers are
+included.  Bulky duplicate `restart_data`, failed Silo attempts, and smoke
+outputs remain untouched on Unity but are excluded from the transport
+archives.  Packaging runs as a Slurm job rather than loading the login node.

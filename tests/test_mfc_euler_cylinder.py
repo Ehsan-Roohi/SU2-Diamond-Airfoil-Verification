@@ -23,6 +23,9 @@ VORTEX_CONTROLS_PATH = (
 VORTEX_PROTOCOL_PATH = (
     ROOT / "mfc_euler_cylinder" / "vortex_sensitivity_protocol.json"
 )
+PACKAGE_COMPLETED_PATH = (
+    ROOT / "mfc_euler_cylinder" / "unity_package_completed_cylinder_runs.sh"
+)
 
 
 def load_module(path: Path, name: str):
@@ -273,6 +276,18 @@ class MFCEulerCylinderTests(unittest.TestCase):
                 case["t_step_stop"] // case["t_step_save"] + 1,
                 item["expected_snapshots"],
             )
+
+    def test_completed_run_packager_requires_pass_and_preserves_raw_restarts(self):
+        packager = PACKAGE_COMPLETED_PATH.read_text(encoding="utf-8")
+        self.assertIn("latest_pass_marker", packager)
+        self.assertIn("grid_f180_cfl0p20", packager)
+        self.assertIn("timestep_f90_cfl0p10", packager)
+        self.assertIn("RUN_OK_MFC_VISCOUS_CYLINDER_RECOVERED.txt", packager)
+        self.assertIn("--exclude='*/restart_data'", packager)
+        self.assertIn("RUN_OK_CYLINDER_PACKAGES.txt", packager)
+        self.assertIn("sha256sum", packager)
+        self.assertIn("sbatch --parsable", packager)
+        self.assertNotIn("rm -rf", packager)
 
     def test_vcfl_recovery_is_dt4_restart_and_afterok_chained(self):
         launcher = VCFL_RECOVERY_PATH.read_text(encoding="utf-8")
