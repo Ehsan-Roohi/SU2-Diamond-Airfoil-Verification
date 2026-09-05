@@ -262,3 +262,24 @@ runs without weakening any success check by setting `INCLUDE_VISCOUS=0`:
 ```bash
 INCLUDE_VISCOUS=0 bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_package_completed_cylinder_runs.sh)
 ```
+
+
+## Official MFC Re=40 cylinder reference
+
+The upstream MFC example `2D_ibm_viscous_drag_over_cylinder` is a
+low-Mach validation case at `Ma=0.1` and `Re_D=40`.  It contains no shock
+and lies below the periodic-shedding threshold: the expected solution is a
+steady symmetric recirculation wake and drag.  The launcher verifies the exact
+case-file blob from MFC commit `0c9a1d43`; gate mode changes only
+`t_stop` and `t_save`.
+
+Run the short, full-resolution numerical gate first:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_official_mfc_re40_cylinder.sh)
+```
+
+A PASS marker means only that the official configuration executed stably on
+the pinned Unity build.  After that gate passes, submit the unshortened
+Table-4 validation trajectory explicitly with `RUN_MODE=full`; do not use
+the full run as a shock or periodic-vortex benchmark.
