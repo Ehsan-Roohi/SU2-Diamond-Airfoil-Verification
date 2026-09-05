@@ -185,9 +185,23 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airf
 
 Both branches use `CFL_COEFFICIENT=0.025` and advance only from `t=2.7` to
 `t=3.1`; one retains HLLC and the other uses the more dissipative HLL flux.
-They run sequentially in one Slurm allocation so MFC's case-specialized build
-tree cannot be modified concurrently.  The source checkpoint is copied by
-reflink into two new directories and is never edited.
+The first sequential-allocation attempt established only the HLLC result:
+HLLC reached step 76691 (`t=2.8787912913`) and then stopped at
+`VCFL=1.0969517515`.  Its MPI abort terminated the enclosing allocation
+before HLL started, so that attempt is not a two-flux comparison.
+
+Do not repeat the known HLLC branch.  Run HLL alone in an independent
+allocation, followed by a separate `afterany` audit job:
+
+```bash
+RIEMANN_SOLVER=hll \
+OUTPUT_ROOT=/project/pi_roohie_umass_edu/SU2-Diamond-Airfoil-Verification-unity-data/runs/mfc_viscous_cylinder_flux_branch \
+bash <(curl -fsSL https://raw.githubusercontent.com/Ehsan-Roohi/SU2-Diamond-Airfoil-Verification/agent/mfc-euler-cylinder-validation/mfc_euler_cylinder/unity_submit_viscous_cylinder_flux_branch.sh)
+```
+
+The audit job runs even if MPI aborts the simulation allocation and writes an
+explicit HLL PASS/FAIL marker.  The source checkpoint is copied by reflink into
+the new branch directory and is never edited.
 
 Each branch writes `CHECKPOINT_AUDIT.tsv`, `CHECKPOINT_AUDIT.json`, its full
 simulation log, a field inventory, and either
@@ -204,8 +218,8 @@ physical-validation or vortex-ground-truth claim.  Interpret the branches as:
   pressure, temperature proxy, shock position, and the near-wall wake.
 
 Override `SOURCE_PROD_DIR` only if the printed recovery directory differs from
-the frozen default.  Source the printed `submission.env` to monitor the single
-diagnostic job.
+the frozen default.  For the independent HLL run, source the printed
+`submission.env` and monitor both `RUN_JOB` and `AUDIT_JOB`.
 
 Only after the pilot is numerically physical and displays a developed wake
 should the identical fixed-grid runs at `REYNOLDS=50000` and
